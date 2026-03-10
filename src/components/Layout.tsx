@@ -17,47 +17,56 @@ export default function Layout() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <nav className="bg-indigo-600 text-white shadow-md">
+    <div className="min-h-screen bg-slate-100 text-slate-800">
+      <header className="border-b border-slate-300 bg-slate-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Monitor className="h-6 w-6 text-slate-700" />
+            <span className="text-lg font-semibold tracking-tight">Inventario Equipos</span>
+          </div>
+        </div>
+      </header>
+
+      <nav className="border-b border-slate-200 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <Monitor className="h-8 w-8 mr-3" />
-              <span className="font-bold text-xl tracking-tight">Inventario NUC</span>
-            </div>
-            <div className="flex space-x-4">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={cn(
-                      'flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                      isActive ? 'bg-indigo-700 text-white' : 'text-indigo-100 hover:bg-indigo-500 hover:text-white'
-                    )}
-                  >
-                    <Icon className="h-4 w-4 mr-2" />
-                    {item.name}
-                  </Link>
-                );
-              })}
-              <a
-                href="/api/export"
-                className="flex items-center px-3 py-2 rounded-md text-sm font-medium text-indigo-100 hover:bg-indigo-500 hover:text-white transition-colors"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Exportar CSV
-              </a>
-            </div>
+          <div className="flex items-center gap-2 py-2">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md transition-all',
+                    isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.name}
+                </Link>
+              );
+            })}
+            <a
+              href="/api/export"
+              className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            >
+              <Download className="h-4 w-4" />
+              Exportar CSV
+            </a>
           </div>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Outlet />
+        <section className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+          <Outlet />
+        </section>
       </main>
+
+      <footer className="text-center text-xs text-slate-500 py-4">
+        © {new Date().getFullYear()} Inventario Equipos · Santa Priscila
+      </footer>
     </div>
   );
 }

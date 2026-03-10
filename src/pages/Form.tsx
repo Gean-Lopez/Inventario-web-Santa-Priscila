@@ -187,7 +187,7 @@ export default function Form() {
           <div className="sm:col-span-3">
             <label htmlFor="modelo_pc" className="block text-sm font-medium text-slate-700">Modelo PC</label>
             <div className="mt-1">
-              <input type="text" name="modelo_pc" id="modelo_pc" value={formData.modelo_pc} onChange={handleChange} placeholder="Intel NUC" className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-slate-300 rounded-md p-2 border" />
+              <input type="text" name="modelo_pc" id="modelo_pc" value={formData.modelo_pc} onChange={handleChange} placeholder="Intel " className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-slate-300 rounded-md p-2 border" />
             </div>
           </div>
 
