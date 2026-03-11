@@ -1,4 +1,4 @@
-# URL del servidor web (ajusta si es diferente)
+# URL del servidor web 
 $UrlApi = 'http://10.51.17.205:5000/api/equipos'
 
 # DATOS BASICOS
@@ -23,7 +23,7 @@ if ($adaptador) {
         $tipoNIC = 'Integrada WiFi'
     }
     else {
-        $tipoNIC = 'Integrada Ethernet'
+        $tipoNIC = 'Integrada Ethernet' 
     }
 }
 else {
@@ -45,10 +45,25 @@ $cpu = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name
 $discoC = (Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DeviceID -eq 'C:' }).Size / 1GB
 $discoGB = [math]::Round($discoC, 0)
 
-# Modelo y serial
-$pcInfo = Get-CimInstance Win32_ComputerSystem
-$modelo = $pcInfo.Model
-$serial = (Get-CimInstance Win32_BIOS).SerialNumber
+# Modelo, marca y tipo de recurso
+$pcInfo   = Get-CimInstance Win32_ComputerSystem
+$modelo   = $pcInfo.Model
+$marcaHw  = $pcInfo.Manufacturer
+$serial   = (Get-CimInstance Win32_BIOS).SerialNumber
+
+# Clasificar tipo de recurso (CPU / NUC / LAPTOP / MOVIL)
+if ($modelo -match 'NUC') {
+    $tipoRecurso = 'NUC'
+}
+elseif ($modelo -match 'LAPTOP|NOTEBOOK|BOOK|ThinkPad|EliteBook|Latitude' -or $pcInfo.PCSystemType -eq 2) {
+    $tipoRecurso = 'LAPTOP'
+}
+elseif ($modelo -match 'TABLET|MOBILE|PHONE') {
+    $tipoRecurso = 'DISPOSITIVO MOVIL'
+}
+else {
+    $tipoRecurso = 'CPU'
+}
 
 # Ubicacion y observaciones
 $ubicacion = 'Por definir'
@@ -68,6 +83,8 @@ $datos = @{
     disco_gb          = $discoGB
     modelo_pc         = $modelo
     no_serie          = $serial
+    tipo_recurso      = $tipoRecurso
+    marca             = $marcaHw
     ubicacion         = $ubicacion
     observaciones     = $observaciones
 }
@@ -110,3 +127,5 @@ Write-Host "  Disco C: : ${discoGB}GB"
 Write-Host "  Modelo   : $modelo"
 Write-Host "  Serial   : $serial"
 Write-Host ""
+
+Read-Host "Presiona ENTER para cerrar esta ventana"
