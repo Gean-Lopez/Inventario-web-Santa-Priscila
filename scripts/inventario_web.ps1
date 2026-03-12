@@ -87,6 +87,7 @@ $datos = @{
     marca             = $marcaHw
     ubicacion         = $ubicacion
     observaciones     = $observaciones
+    fecha_inventario  = (Get-Date -Format 'yyyy-MM-dd')
 }
 
 # Convertir a JSON

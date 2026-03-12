@@ -19,7 +19,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800">
       <header className="border-b border-slate-300 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Monitor className="h-6 w-6 text-slate-700" />
             <span className="text-lg font-semibold tracking-tight">Inventario Equipos</span>
@@ -28,7 +28,7 @@ export default function Layout() {
       </header>
 
       <nav className="border-b border-slate-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2 py-2">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -58,7 +58,7 @@ export default function Layout() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-8">
         <section className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
           <Outlet />
         </section>
