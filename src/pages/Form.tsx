@@ -1,6 +1,6 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Save, X, AlertCircle } from 'lucide-react';
+import { Save, X, AlertCircle, ShieldAlert } from 'lucide-react';
 
 export default function Form() {
   const { id } = useParams();
@@ -56,8 +56,21 @@ export default function Form() {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    setIsAdmin(!!token && role === 'admin');
+  }, []);
+
+  useEffect(() => {
+    if (isEdit && !isAdmin) {
+      setLoading(false);
+      setError('Debes iniciar sesión como administrador para editar un equipo.');
+      return;
+    }
+
     if (isEdit) {
       fetch(`/api/equipos/${id}`)
         .then(res => {
@@ -84,8 +97,10 @@ export default function Form() {
           setError(err.message);
           setLoading(false);
         });
+    } else {
+      setLoading(false);
     }
-  }, [id, isEdit]);
+  }, [id, isEdit, isAdmin]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -146,12 +161,25 @@ export default function Form() {
         detalle_mantenimiento: emptyToNull(formData.detalle_mantenimiento),
         activo: emptyToNull(formData.activo),
         observacion: emptyToNull(formData.observacion),
-        etiquetado: emptyToNull(formData.etiquetado)
+        etiquetado: emptyToNull(formData.etiquetado),
+        dominio: emptyToNull(formData.dominio),
+        tipo_tarjeta_red: emptyToNull(formData.tipo_tarjeta_red),
+        ubicacion: emptyToNull(formData.ubicacion)
       };
+
+      const token = localStorage.getItem('token');
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+
+      if (isEdit && token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload)
       });
 
@@ -161,7 +189,9 @@ export default function Form() {
         throw new Error(data?.error || 'Error al guardar el equipo');
       }
 
-      navigate('/');
+      navigate('/', {
+        state: { refresh: true, ts: Date.now() },
+      });
     } catch (err: any) {
       setError(err.message || 'Error al guardar el equipo');
     } finally {
@@ -171,6 +201,30 @@ export default function Form() {
 
   if (loading) {
     return <div className="py-16 text-center text-sm text-slate-200">Cargando...</div>;
+  }
+
+  if (isEdit && !isAdmin) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <div className="rounded-3xl border border-amber-500/25 bg-amber-500/10 p-6">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="mt-0.5 h-6 w-6 text-amber-200" />
+            <div>
+              <h2 className="text-lg font-semibold text-amber-100">Acceso restringido</h2>
+              <p className="mt-2 text-sm text-amber-200">
+                Debes iniciar sesión como administrador para editar equipos.
+              </p>
+              <button
+                onClick={() => navigate('/')}
+                className="mt-4 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15"
+              >
+                Volver al listado
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const inputClass =

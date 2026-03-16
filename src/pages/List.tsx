@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search,
   Pencil,
@@ -11,7 +11,9 @@ import {
   Download,
   X,
   FileDown,
+  ShieldAlert,
 } from 'lucide-react';
+import ActaEntrega from '../components/ActaEntrega';
 
 interface Equipo {
   id: number;
@@ -75,6 +77,8 @@ function getActivoBadge(value?: string) {
 
 export default function List() {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const [equipos, setEquipos] = useState<Equipo[]>([]);
   const [search, setSearch] = useState('');
   const [filterBy, setFilterBy] = useState('all');
@@ -94,6 +98,21 @@ export default function List() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [pageSize, setPageSize] = useState(10);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const [showActa, setShowActa] = useState(false);
+  const [equipoActa, setEquipoActa] = useState<Equipo | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    setIsAdmin(!!token && role === 'admin');
+  }, [equipoDetalle, showScript, showActa]);
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
 
   const fetchEquipos = () => {
     setLoading(true);
@@ -114,15 +133,40 @@ export default function List() {
     fetchEquipos();
   }, [search, page, pageSize, filterBy]);
 
+  useEffect(() => {
+    if ((location.state as any)?.refresh) {
+      setSelectedIds([]);
+      setEquipoDetalle(null);
+      setSearch('');
+      setFilterBy('all');
+      setPage(1);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
   const handleDelete = async (id: number) => {
+    if (!isAdmin) {
+      alert('🔒 Debes iniciar sesión como admin para eliminar');
+      return;
+    }
+
     if (!confirm('¿Estás seguro de que deseas eliminar este equipo?')) return;
+
     try {
-      const res = await fetch(`/api/equipos/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/equipos/${id}`, {
+        method: 'DELETE',
+        headers: {
+          ...getAuthHeaders(),
+        },
+      });
+
+      const data = await res.json().catch(() => null);
+
       if (res.ok) {
         setEquipoDetalle(null);
         fetchEquipos();
       } else {
-        alert('❌ Error al eliminar el equipo');
+        alert(`❌ ${data?.error || 'Error al eliminar el equipo'}`);
       }
     } catch {
       alert('❌ Error al conectar con el servidor');
@@ -130,10 +174,31 @@ export default function List() {
   };
 
   const handleDeleteSelected = async () => {
+    if (!isAdmin) {
+      alert('🔒 Debes iniciar sesión como admin para eliminar');
+      return;
+    }
+
     if (selectedIds.length === 0) return;
     if (!confirm(`¿Eliminar ${selectedIds.length} equipo(s) seleccionado(s)?`)) return;
+
     try {
-      await Promise.all(selectedIds.map(id => fetch(`/api/equipos/${id}`, { method: 'DELETE' })));
+      const results = await Promise.all(
+        selectedIds.map(id =>
+          fetch(`/api/equipos/${id}`, {
+            method: 'DELETE',
+            headers: {
+              ...getAuthHeaders(),
+            },
+          })
+        )
+      );
+
+      const hasError = results.some(r => !r.ok);
+      if (hasError) {
+        alert('❌ Uno o más equipos no pudieron eliminarse');
+      }
+
       setSelectedIds([]);
       fetchEquipos();
     } catch {
@@ -274,6 +339,16 @@ export default function List() {
 
   return (
     <div className="space-y-6">
+      {showActa && (
+        <ActaEntrega
+          equipo={equipoActa}
+          onClose={() => {
+            setShowActa(false);
+            setEquipoActa(null);
+          }}
+        />
+      )}
+
       {showScript && (
         <div
           className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-slate-950/85 px-4 pb-4 pt-28 backdrop-blur-sm"
@@ -440,24 +515,44 @@ export default function List() {
               </div>
             </div>
 
-            <div className="flex gap-3 border-t border-white/15 bg-white/[0.06] px-6 py-4">
-              <button
-                onClick={() => {
-                  navigate(`/edit/${equipoDetalle.id}`);
-                  setEquipoDetalle(null);
-                }}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90"
-              >
-                <Pencil size={15} />
-                Editar
-              </button>
-              <button
-                onClick={() => handleDelete(equipoDetalle.id)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/15 px-4 py-3 text-sm font-medium text-red-200 transition hover:bg-red-500/20"
-              >
-                <Trash2 size={15} />
-                Eliminar
-              </button>
+            <div className="border-t border-white/15 bg-white/[0.06] px-6 py-4">
+              {isAdmin ? (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setEquipoActa(equipoDetalle);
+                      setShowActa(true);
+                    }}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-500/25 bg-cyan-500/15 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-500/20"
+                  >
+                    <FileText size={15} />
+                    Acta
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      navigate(`/edit/${equipoDetalle.id}`);
+                      setEquipoDetalle(null);
+                    }}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                  >
+                    <Pencil size={15} />
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => handleDelete(equipoDetalle.id)}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/15 px-4 py-3 text-sm font-medium text-red-200 transition hover:bg-red-500/20"
+                  >
+                    <Trash2 size={15} />
+                    Eliminar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                  <ShieldAlert size={18} />
+                  Inicia sesión como administrador para editar o eliminar este equipo.
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -475,7 +570,7 @@ export default function List() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {selectedIds.length > 0 && (
+          {selectedIds.length > 0 && isAdmin && (
             <button
               onClick={handleDeleteSelected}
               className="inline-flex items-center gap-2 rounded-2xl border border-red-500/25 bg-red-500/15 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/20"
@@ -524,6 +619,12 @@ export default function List() {
       {importError && (
         <div className="rounded-2xl border border-red-500/25 bg-red-500/15 px-4 py-3 text-sm font-medium text-red-200">
           {importError}
+        </div>
+      )}
+
+      {!isAdmin && (
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Solo el usuario admin puede editar o eliminar equipos.
         </div>
       )}
 

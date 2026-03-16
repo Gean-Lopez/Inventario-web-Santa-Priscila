@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as XLSX from 'xlsx';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 dotenv.config();
 
@@ -21,6 +23,8 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
 });
+
+const JWT_SECRET = process.env.JWT_SECRET || 'inventario_admin_secret_2026';
 
 async function initDb() {
   const connection = await pool.getConnection();
@@ -78,6 +82,17 @@ async function initDb() {
         activo VARCHAR(10),
         observacion TEXT,
         etiquetado VARCHAR(100)
+      )
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'user',
+        activo TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -185,7 +200,81 @@ function mapEquipo(body: any) {
   };
 }
 
-// 1. Obtener equipos
+function verifyToken(req: any, res: any, next: any) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token requerido' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Token inválido o expirado' });
+  }
+}
+
+function requireAdmin(req: any, res: any, next: any) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Acceso solo para administrador' });
+  }
+  next();
+}
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+    }
+
+    const connection = await pool.getConnection();
+    const [rows]: any = await connection.query(
+      'SELECT * FROM usuarios WHERE username = ? AND activo = 1 LIMIT 1',
+      [username]
+    );
+    connection.release();
+
+    if (!rows.length) {
+      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    }
+
+    const user = rows[0];
+    const ok = await bcrypt.compare(password, user.password_hash);
+
+    if (!ok) {
+      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Error en login: ' + error.message });
+  }
+});
+
+app.get('/api/me', verifyToken, (req: any, res) => {
+  res.json({ user: req.user });
+});
+
 app.get('/api/equipos', async (req, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
@@ -291,7 +380,6 @@ app.get('/api/equipos', async (req, res) => {
   }
 });
 
-// 2. Obtener equipo por ID
 app.get('/api/equipos/:id', async (req, res) => {
   try {
     const connection = await pool.getConnection();
@@ -308,7 +396,6 @@ app.get('/api/equipos/:id', async (req, res) => {
   }
 });
 
-// 3. Crear equipo
 app.post('/api/equipos', async (req, res) => {
   try {
     const equipo = mapEquipo(req.body);
@@ -323,8 +410,7 @@ app.post('/api/equipos', async (req, res) => {
   }
 });
 
-// 4. Editar equipo
-app.put('/api/equipos/:id', async (req, res) => {
+app.put('/api/equipos/:id', verifyToken, requireAdmin, async (req, res) => {
   try {
     const equipo: any = mapEquipo(req.body);
     delete equipo.id;
@@ -340,8 +426,7 @@ app.put('/api/equipos/:id', async (req, res) => {
   }
 });
 
-// 5. Eliminar equipo
-app.delete('/api/equipos/:id', async (req, res) => {
+app.delete('/api/equipos/:id', verifyToken, requireAdmin, async (req, res) => {
   try {
     const connection = await pool.getConnection();
     await connection.query('DELETE FROM equipos WHERE id = ?', [req.params.id]);
@@ -352,7 +437,6 @@ app.delete('/api/equipos/:id', async (req, res) => {
   }
 });
 
-// 6. Importar Excel
 app.post('/api/importexcel', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No se envió archivo' });
@@ -436,7 +520,6 @@ app.post('/api/importexcel', upload.single('file'), async (req, res) => {
   }
 });
 
-// 7. Exportar Excel
 app.get('/api/export', async (_req, res) => {
   try {
     const connection = await pool.getConnection();
@@ -462,7 +545,6 @@ app.get('/api/export', async (_req, res) => {
   }
 });
 
-// 8. Script PowerShell
 app.get('/api/script', (_req, res) => {
   const script = `# URL del servidor web
 $UrlApi = 'http://10.51.17.205:5000/api/equipos'
@@ -622,7 +704,6 @@ Read-Host "Presiona ENTER para cerrar"`;
   res.send(script);
 });
 
-// 9. Estadísticas
 app.get('/api/stats', async (_req, res) => {
   try {
     const connection = await pool.getConnection();
@@ -676,7 +757,6 @@ app.get('/api/stats', async (_req, res) => {
   }
 });
 
-// Inicio servidor
 async function startServer() {
   await initDb();
   const PORT = 5000;
