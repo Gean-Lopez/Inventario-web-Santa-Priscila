@@ -38,7 +38,7 @@ async function initDb() {
         direccion_ip VARCHAR(15),
         direccion_mac VARCHAR(17),
         tipo_tarjeta_red VARCHAR(100),
-        sistema_operativo VARCHAR(50),
+        sistema_operativo VARCHAR(100),
         ram_gb INT,
         procesador VARCHAR(255),
         disco_gb INT,
@@ -105,28 +105,83 @@ async function initDb() {
 }
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '20mb' }));
 const upload = multer({ storage: multer.memoryStorage() });
 
 function formatDate(val: any): string | null {
-  if (!val || val === '') return null;
-  if (typeof val === 'string' && val.includes('T')) return val.split('T')[0];
-  if (typeof val === 'number') {
-    const date = XLSX.SSF.parse_date_code(val);
-    return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
+  if (val === null || val === undefined || val === '') return null;
+
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return val.toISOString().slice(0, 10);
   }
-  return val || null;
+
+  if (typeof val === 'string') {
+    const text = val.trim();
+    if (!text) return null;
+
+    if (text.includes('T')) return text.split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+    const parsed = new Date(text);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+
+    return null;
+  }
+
+  if (typeof val === 'number') {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const date = new Date(excelEpoch.getTime() + val * 86400000);
+    if (!isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+  }
+
+  return null;
 }
 
 function numberFromText(val: any): number | null {
   if (val === null || val === undefined || val === '') return null;
-  if (typeof val === 'number') return val;
+  if (typeof val === 'number') return Math.round(val);
   const n = parseInt(String(val).replace(/\D/g, ''), 10);
   return Number.isNaN(n) ? null : n;
 }
 
 function cleanEmpty(val: any) {
   return val === '' || val === undefined ? null : val;
+}
+
+function normalizeText(val: any) {
+  if (val === null || val === undefined) return null;
+  const text = String(val).trim();
+  return text === '' ? null : text;
+}
+
+function normalizeMac(val: any) {
+  const text = normalizeText(val);
+  return text ? text.toUpperCase() : null;
+}
+
+function normalizeHost(val: any) {
+  const text = normalizeText(val);
+  return text ? text.toUpperCase() : null;
+}
+
+function normalizeSerie(val: any) {
+  const text = normalizeText(val);
+  return text ? text.toUpperCase() : null;
+}
+
+function isPlaceholderValue(val: any) {
+  if (val === null || val === undefined) return true;
+  const text = String(val).trim().toUpperCase();
+
+  return (
+    text === '' ||
+    text === 'SIN NOMBRE' ||
+    text === 'N/A' ||
+    text === 'NA' ||
+    text === '-' ||
+    text === 'AGREGADO' ||
+    text === 'POR AGREGAR'
+  );
 }
 
 function mapEquipo(body: any) {
@@ -174,10 +229,10 @@ function mapEquipo(body: any) {
 
     procesador: cleanEmpty(body.procesador),
 
-    ram: cleanEmpty(body.ram) || (body.ram_gb != null ? `${body.ram_gb}GB` : null),
+    ram: cleanEmpty(body.ram) || (body.ram_gb != null ? `${body.ram_gb} GB` : null),
     ram_gb: body.ram_gb != null ? numberFromText(body.ram_gb) : numberFromText(body.ram),
 
-    disco: cleanEmpty(body.disco) || (body.disco_gb != null ? `${body.disco_gb}GB` : null),
+    disco: cleanEmpty(body.disco) || (body.disco_gb != null ? `${body.disco_gb} GB` : null),
     disco_gb: body.disco_gb != null ? numberFromText(body.disco_gb) : numberFromText(body.disco),
 
     antivirus: cleanEmpty(body.antivirus),
@@ -225,6 +280,258 @@ function requireAdmin(req: any, res: any, next: any) {
   next();
 }
 
+function getVal(row: any, ...keys: string[]) {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return value;
+    }
+  }
+  return null;
+}
+
+function isRowEmpty(row: any) {
+  return Object.values(row).every(
+    (v) => v === null || v === undefined || String(v).trim() === ''
+  );
+}
+
+function hasMinimumData(equipo: any) {
+  const serie = !isPlaceholderValue(equipo.serie) ? equipo.serie : null;
+  const mac = !isPlaceholderValue(equipo.mac_address) ? equipo.mac_address : null;
+  const ip = !isPlaceholderValue(equipo.ip) ? equipo.ip : null;
+  const host = !isPlaceholderValue(equipo.nombre_host) ? equipo.nombre_host : null;
+  const pc = !isPlaceholderValue(equipo.nombre_pc) ? equipo.nombre_pc : null;
+
+  return Boolean(serie || mac || ip || host || pc);
+}
+
+async function findDuplicateEquipo(connection: any, equipo: any, excludeId?: number | string) {
+  const serie = normalizeSerie(equipo.serie || equipo.no_serie);
+  const mac = normalizeMac(equipo.mac_address || equipo.direccion_mac);
+  const host = normalizeHost(equipo.nombre_host || equipo.nombre_pc);
+
+  if (serie && !isPlaceholderValue(serie)) {
+    const sql = excludeId
+      ? 'SELECT id, serie, mac_address, nombre_host FROM equipos WHERE UPPER(TRIM(serie)) = ? AND id <> ? LIMIT 1'
+      : 'SELECT id, serie, mac_address, nombre_host FROM equipos WHERE UPPER(TRIM(serie)) = ? LIMIT 1';
+    const params = excludeId ? [serie, excludeId] : [serie];
+    const [rows]: any = await connection.query(sql, params);
+    if (rows.length) {
+      return { exists: true, reason: 'serie', record: rows[0] };
+    }
+  }
+
+  if ((!serie || isPlaceholderValue(serie)) && mac && !isPlaceholderValue(mac)) {
+    const sql = excludeId
+      ? 'SELECT id, serie, mac_address, nombre_host FROM equipos WHERE UPPER(TRIM(mac_address)) = ? AND id <> ? LIMIT 1'
+      : 'SELECT id, serie, mac_address, nombre_host FROM equipos WHERE UPPER(TRIM(mac_address)) = ? LIMIT 1';
+    const params = excludeId ? [mac, excludeId] : [mac];
+    const [rows]: any = await connection.query(sql, params);
+    if (rows.length) {
+      return { exists: true, reason: 'mac_address', record: rows[0] };
+    }
+  }
+
+  if (
+    (!serie || isPlaceholderValue(serie)) &&
+    (!mac || isPlaceholderValue(mac)) &&
+    host &&
+    !isPlaceholderValue(host)
+  ) {
+    const sql = excludeId
+      ? 'SELECT id, serie, mac_address, nombre_host FROM equipos WHERE UPPER(TRIM(nombre_host)) = ? AND id <> ? LIMIT 1'
+      : 'SELECT id, serie, mac_address, nombre_host FROM equipos WHERE UPPER(TRIM(nombre_host)) = ? LIMIT 1';
+    const params = excludeId ? [host, excludeId] : [host];
+    const [rows]: any = await connection.query(sql, params);
+    if (rows.length) {
+      return { exists: true, reason: 'nombre_host', record: rows[0] };
+    }
+  }
+
+  return { exists: false };
+}
+
+function buildEquipoFromRow(row: any) {
+  return mapEquipo({
+    empresa: getVal(row, 'EMPRESA', 'empresa'),
+    establecimiento: getVal(row, 'ESTABLECIMIENTO', 'establecimiento'),
+    departamento: getVal(row, 'DEPARTAMENTO', 'departamento'),
+    area: getVal(row, 'AREA', 'ÁREA', 'area'),
+    jefe_area: getVal(row, 'JEFE AREA', 'JEFE ÁREA', 'jefe_area'),
+    responsable_equipo: getVal(row, 'RESPONSABLE DEL EQUIPO', 'responsable_equipo'),
+
+    fecha_adquisicion: getVal(row, 'FECHA DE ADQUISICION', 'FECHA DE ADQUISICIÓN', 'fecha_adquisicion'),
+    fecha_instalacion: getVal(row, 'FECHA DE INSTALACION', 'FECHA DE INSTALACIÓN', 'fecha_instalacion'),
+    proveedor: getVal(row, 'PROVEEDOR', 'proveedor'),
+    tipo_recurso: getVal(row, 'TIPO RECURSO (CPU/NUC/LAPTOP)', 'TIPO RECURSO', 'tipo_recurso'),
+    marca: getVal(row, 'MARCA', 'marca'),
+    modelo: getVal(row, 'MODELO', 'modelo'),
+    modelo_pc: getVal(row, 'MODELO PC', 'modelo_pc'),
+
+    nombre_host: getVal(row, 'NOMBRE HOST', 'nombre_host'),
+    nombre_pc: getVal(row, 'NOMBRE PC', 'nombre_pc'),
+
+    active_directory: getVal(row, 'ACTIVE DIRECTORY', 'active_directory'),
+    dominio: getVal(row, 'DOMINIO', 'dominio'),
+    usuario: getVal(row, 'USUARIO', 'usuario'),
+    contrasena: getVal(row, 'CONTRASEÑA', 'CONTRASENA', 'contrasena'),
+    sistema_operativo: getVal(row, 'SISTEMA OPERATIVO', 'sistema_operativo'),
+
+    tiene_licencia_windows: getVal(row, 'TIENE LICENCIA WINDOWS', 'tiene_licencia_windows'),
+    codigo_licencia_windows: getVal(
+      row,
+      'CODIGO DE LICENCIA DE WINDOWS',
+      'CÓDIGO DE LICENCIA DE WINDOWS',
+      'CODIGO LICENCIA WINDOWS',
+      'codigo_licencia_windows'
+    ),
+    tiene_licencia_office: getVal(row, 'TIENE LICENCIA OFFICE', 'tiene_licencia_office'),
+
+    mac_address: getVal(row, 'MAC ADDRESS', 'mac_address'),
+    direccion_mac: getVal(row, 'DIRECCION MAC', 'DIRECCIÓN MAC', 'direccion_mac'),
+    mac_address2: getVal(row, 'MAC ADDRESS 2', 'mac_address2'),
+
+    ip: getVal(row, 'IP', 'ip'),
+    direccion_ip: getVal(row, 'DIRECCION IP', 'DIRECCIÓN IP', 'direccion_ip'),
+    ip_extendida: getVal(row, 'IP-EXTENDIDA', 'IP EXTENDIDA', 'ip_extendida'),
+
+    serie: getVal(row, 'SERIE', 'serie'),
+    no_serie: getVal(row, 'NO SERIE', 'no_serie'),
+
+    procesador: getVal(row, 'PROCESADOR', 'procesador'),
+    ram: getVal(row, 'RAM', 'ram'),
+    ram_gb: getVal(row, 'RAM GB', 'ram_gb'),
+    disco: getVal(row, 'DISCO', 'disco'),
+    disco_gb: getVal(row, 'DISCO GB', 'disco_gb'),
+
+    antivirus: getVal(row, 'ANTIVIRUS', 'antivirus'),
+    tiene_mouse: getVal(row, 'TIENE MOUSE', 'tiene_mouse'),
+    tiene_teclado: getVal(row, 'TIENE TECLADO', 'tiene_teclado'),
+    tiene_parlante: getVal(row, 'TIENE PARLANTE', 'tiene_parlante'),
+
+    tipo_tarjeta_red: getVal(row, 'TIPO TARJETA RED', 'tipo_tarjeta_red'),
+    ubicacion: getVal(row, 'UBICACION', 'UBICACIÓN', 'ubicacion'),
+
+    fecha_inventario: getVal(row, 'FECHA DEL INVENTARIO', 'fecha_inventario'),
+    responsable_inventario: getVal(row, 'RESPONSABLE DEL INVENTARIO', 'responsable_inventario'),
+    fecha_mantenimiento: getVal(row, 'FECHA DEL MANTENIMIENTO', 'fecha_mantenimiento'),
+    detalle_mantenimiento: getVal(row, 'DETALLE MANTENIMIENTO', 'detalle_mantenimiento'),
+
+    activo: getVal(row, 'ACTIVO', 'activo'),
+    observacion: getVal(row, 'OBSERVACIÓN', 'OBSERVACION', 'observacion'),
+    observaciones: getVal(row, 'OBSERVACIONES', 'observaciones'),
+    etiquetado: getVal(row, 'ETIQUETADO.', 'ETIQUETADO', 'etiquetado'),
+  });
+}
+
+function makeImportKey(equipo: any) {
+  return [
+    normalizeSerie(equipo.serie || equipo.no_serie) || '',
+    normalizeMac(equipo.mac_address || equipo.direccion_mac) || '',
+    normalizeHost(equipo.nombre_host || equipo.nombre_pc) || '',
+    normalizeText(equipo.responsable_equipo) || '',
+  ].join('||');
+}
+
+async function analyzeImportRows(connection: any, rows: any[]) {
+  const readyToImport: any[] = [];
+  const duplicates: any[] = [];
+  const invalidRows: any[] = [];
+
+  const seenSeries = new Map<string, number>();
+  const seenMacs = new Map<string, number>();
+  const seenHosts = new Map<string, number>();
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+
+    if (isRowEmpty(row)) {
+      invalidRows.push({
+        rowIndex: i + 2,
+        reason: 'Fila vacía',
+        data: row,
+      });
+      continue;
+    }
+
+    const equipo = buildEquipoFromRow(row);
+
+    if (!hasMinimumData(equipo)) {
+      invalidRows.push({
+        rowIndex: i + 2,
+        reason: 'Sin datos mínimos válidos',
+        equipo,
+      });
+      continue;
+    }
+
+    const serie = normalizeSerie(equipo.serie || equipo.no_serie);
+    const mac = normalizeMac(equipo.mac_address || equipo.direccion_mac);
+    const host = normalizeHost(equipo.nombre_host || equipo.nombre_pc);
+
+    if (serie && !isPlaceholderValue(serie)) {
+      if (seenSeries.has(serie)) {
+        duplicates.push({
+          rowIndex: i + 2,
+          importKey: `${serie}||${mac || ''}||${host || ''}||${i + 2}`,
+          duplicateReason: `serie repetida en el Excel (fila ${seenSeries.get(serie)})`,
+          equipo,
+          existing: { id: `Excel fila ${seenSeries.get(serie)}` },
+        });
+        continue;
+      }
+      seenSeries.set(serie, i + 2);
+    } else if (mac && !isPlaceholderValue(mac)) {
+      if (seenMacs.has(mac)) {
+        duplicates.push({
+          rowIndex: i + 2,
+          importKey: `${serie || ''}||${mac}||${host || ''}||${i + 2}`,
+          duplicateReason: `mac_address repetida en el Excel (fila ${seenMacs.get(mac)})`,
+          equipo,
+          existing: { id: `Excel fila ${seenMacs.get(mac)}` },
+        });
+        continue;
+      }
+      seenMacs.set(mac, i + 2);
+    } else if (host && !isPlaceholderValue(host)) {
+      if (seenHosts.has(host)) {
+        duplicates.push({
+          rowIndex: i + 2,
+          importKey: `${serie || ''}||${mac || ''}||${host}||${i + 2}`,
+          duplicateReason: `nombre_host repetido en el Excel (fila ${seenHosts.get(host)})`,
+          equipo,
+          existing: { id: `Excel fila ${seenHosts.get(host)}` },
+        });
+        continue;
+      }
+      seenHosts.set(host, i + 2);
+    }
+
+    const duplicate = await findDuplicateEquipo(connection, equipo);
+
+    if (duplicate.exists) {
+      duplicates.push({
+        rowIndex: i + 2,
+        importKey: `${serie || ''}||${mac || ''}||${host || ''}||${i + 2}`,
+        duplicateReason: duplicate.reason,
+        equipo,
+        existing: duplicate.record,
+      });
+      continue;
+    }
+
+    readyToImport.push({
+      rowIndex: i + 2,
+      importKey: `${serie || ''}||${mac || ''}||${host || ''}||${i + 2}`,
+      equipo,
+    });
+  }
+
+  return { readyToImport, duplicates, invalidRows };
+}
+
+
 app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -254,7 +561,7 @@ app.post('/api/login', async (req, res) => {
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role },
       JWT_SECRET,
-      { expiresIn: '8h' }
+      { expiresIn: '10m' }
     );
 
     res.json({
@@ -396,15 +703,30 @@ app.get('/api/equipos/:id', async (req, res) => {
   }
 });
 
-app.post('/api/equipos', async (req, res) => {
+app.post('/api/equipos', verifyToken, requireAdmin, async (req, res) => {
   try {
     const equipo = mapEquipo(req.body);
 
-    const connection = await pool.getConnection();
-    await connection.query('INSERT INTO equipos SET ?', [equipo]);
-    connection.release();
+    if (!hasMinimumData(equipo)) {
+      return res.status(400).json({ error: 'El equipo no tiene datos mínimos válidos' });
+    }
 
-    res.json({ success: true });
+    const connection = await pool.getConnection();
+    try {
+      const duplicate = await findDuplicateEquipo(connection, equipo);
+
+      if (duplicate.exists) {
+        return res.status(409).json({
+          error: `Equipo duplicado detectado por ${duplicate.reason}`,
+          duplicate,
+        });
+      }
+
+      await connection.query('INSERT INTO equipos SET ?', [equipo]);
+      res.json({ success: true });
+    } finally {
+      connection.release();
+    }
   } catch (error: any) {
     res.status(500).json({ error: 'Error al crear equipo: ' + error.message });
   }
@@ -416,11 +738,26 @@ app.put('/api/equipos/:id', verifyToken, requireAdmin, async (req, res) => {
     delete equipo.id;
     delete equipo.created_at;
 
-    const connection = await pool.getConnection();
-    await connection.query('UPDATE equipos SET ? WHERE id = ?', [equipo, req.params.id]);
-    connection.release();
+    if (!hasMinimumData(equipo)) {
+      return res.status(400).json({ error: 'El equipo no tiene datos mínimos válidos' });
+    }
 
-    res.json({ success: true });
+    const connection = await pool.getConnection();
+    try {
+      const duplicate = await findDuplicateEquipo(connection, equipo, req.params.id);
+
+      if (duplicate.exists) {
+        return res.status(409).json({
+          error: `Conflicto con otro equipo por ${duplicate.reason}`,
+          duplicate,
+        });
+      }
+
+      await connection.query('UPDATE equipos SET ? WHERE id = ?', [equipo, req.params.id]);
+      res.json({ success: true });
+    } finally {
+      connection.release();
+    }
   } catch (error: any) {
     res.status(500).json({ error: 'Error al actualizar equipo: ' + error.message });
   }
@@ -437,77 +774,98 @@ app.delete('/api/equipos/:id', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/importexcel', upload.single('file'), async (req, res) => {
+app.post('/api/importexcel/preview', verifyToken, requireAdmin, upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No se envió archivo' });
+    if (!req.file) {
+      return res.status(400).json({ error: 'No se envió archivo' });
+    }
 
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const workbook = XLSX.read(req.file.buffer, {
+      type: 'buffer',
+      cellDates: true,
+    });
+
     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: null });
 
     const connection = await pool.getConnection();
     try {
+      const result = await analyzeImportRows(connection, jsonData);
+
+      res.json({
+        success: true,
+        totalRows: jsonData.length,
+        readyToImport: result.readyToImport,
+        duplicates: result.duplicates,
+        invalidRows: result.invalidRows,
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error: any) {
+    console.error('ERROR PREVIEW IMPORT:', error);
+    res.status(500).json({ error: 'Error al previsualizar Excel: ' + error.message });
+  }
+});
+
+app.post('/api/importexcel/confirm', verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const {
+      readyToImport = [],
+      selectedDuplicates = [],
+    } = req.body || {};
+
+    const connection = await pool.getConnection();
+
+    try {
       await connection.beginTransaction();
 
-      for (const row of jsonData) {
-        const equipo = mapEquipo({
-          empresa: row['EMPRESA'],
-          establecimiento: row['ESTABLECIMIENTO'],
-          departamento: row['DEPARTAMENTO'],
-          area: row['AREA'],
-          jefe_area: row['JEFE AREA'],
-          responsable_equipo: row['RESPONSABLE DEL EQUIPO'],
-          fecha_adquisicion: row['FECHA DE ADQUISICION'],
-          fecha_instalacion: row['FECHA DE INSTALACION'],
-          proveedor: row['PROVEEDOR'],
-          tipo_recurso: row['TIPO RECURSO (CPU/NUC/LAPTOP)'] || row['TIPO RECURSO'],
-          marca: row['MARCA'],
-          modelo: row['MODELO'],
-          modelo_pc: row['MODELO PC'],
-          nombre_host: row['NOMBRE HOST'],
-          nombre_pc: row['NOMBRE PC'] || row['NOMBRE HOST'],
-          active_directory: row['ACTIVE DIRECTORY'],
-          dominio: row['DOMINIO'],
-          usuario: row['USUARIO'],
-          contrasena: row['CONTRASEÑA'] || row['CONTRASENA'],
-          sistema_operativo: row['SISTEMA OPERATIVO'],
-          tiene_licencia_windows: row['TIENE LICENCIA WINDOWS'],
-          codigo_licencia_windows: row['CODIGO DE LICENCIA DE WINDOWS'] || row['CODIGO LICENCIA WINDOWS'],
-          tiene_licencia_office: row['TIENE LICENCIA OFFICE'],
-          mac_address: row['MAC ADDRESS'],
-          direccion_mac: row['DIRECCION MAC'],
-          mac_address2: row['MAC ADDRESS 2'],
-          ip: row['IP'],
-          direccion_ip: row['DIRECCION IP'],
-          ip_extendida: row['IP-EXTENDIDA'] || row['IP EXTENDIDA'],
-          serie: row['SERIE'],
-          no_serie: row['NO SERIE'],
-          procesador: row['PROCESADOR'],
-          ram: row['RAM'],
-          ram_gb: row['RAM GB'],
-          disco: row['DISCO'],
-          disco_gb: row['DISCO GB'],
-          antivirus: row['ANTIVIRUS'],
-          tiene_mouse: row['TIENE MOUSE'],
-          tiene_teclado: row['TIENE TECLADO'],
-          tiene_parlante: row['TIENE PARLANTE'],
-          tipo_tarjeta_red: row['TIPO TARJETA RED'],
-          ubicacion: row['UBICACION'] || row['UBICACIÓN'],
-          fecha_inventario: row['FECHA DEL INVENTARIO'],
-          responsable_inventario: row['RESPONSABLE DEL INVENTARIO'],
-          fecha_mantenimiento: row['FECHA DEL MANTENIMIENTO'],
-          detalle_mantenimiento: row['DETALLE MANTENIMIENTO'],
-          activo: row['ACTIVO'],
-          observacion: row['OBSERVACIÓN'] || row['OBSERVACION'],
-          observaciones: row['OBSERVACIONES'],
-          etiquetado: row['ETIQUETADO.'] || row['ETIQUETADO'],
-        });
+      let inserted = 0;
+      let skipped = 0;
+      const skippedItems: any[] = [];
+
+      for (const item of readyToImport) {
+        const equipo = mapEquipo(item.equipo || item);
+
+        if (!hasMinimumData(equipo)) {
+          skipped++;
+          skippedItems.push({ reason: 'Sin datos mínimos', equipo });
+          continue;
+        }
+
+        const duplicate = await findDuplicateEquipo(connection, equipo);
+        if (duplicate.exists) {
+          skipped++;
+          skippedItems.push({ reason: `Duplicado por ${duplicate.reason}`, equipo });
+          continue;
+        }
 
         await connection.query('INSERT INTO equipos SET ?', [equipo]);
+        inserted++;
+      }
+
+      for (const item of selectedDuplicates) {
+        const equipo = mapEquipo(item.equipo || item);
+
+        if (!hasMinimumData(equipo)) {
+          skipped++;
+          skippedItems.push({ reason: 'Sin datos mínimos', equipo });
+          continue;
+        }
+
+        await connection.query('INSERT INTO equipos SET ?', [equipo]);
+        inserted++;
       }
 
       await connection.commit();
-      res.json({ success: true, message: `Importados ${jsonData.length} registros correctamente.` });
+
+      res.json({
+        success: true,
+        message: `Importados ${inserted} registros. Omitidos ${skipped}.`,
+        inserted,
+        skipped,
+        skippedItems,
+      });
     } catch (dbError) {
       await connection.rollback();
       throw dbError;
@@ -515,22 +873,27 @@ app.post('/api/importexcel', upload.single('file'), async (req, res) => {
       connection.release();
     }
   } catch (error: any) {
-    console.error('ERROR DETALLADO:', error);
-    res.status(500).json({ error: 'Error al importar Excel: ' + error.message });
+    console.error('ERROR CONFIRM IMPORT:', error);
+    res.status(500).json({ error: 'Error al confirmar importación: ' + error.message });
   }
 });
 
-app.get('/api/export', async (_req, res) => {
+app.get('/api/export', verifyToken, requireAdmin, async (_req, res) => {
   try {
     const connection = await pool.getConnection();
     const [rows]: any = await connection.query('SELECT * FROM equipos ORDER BY id ASC');
     connection.release();
 
-    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const cleanedRows = rows.filter((row: any) => {
+      const equipo = mapEquipo(row);
+      return hasMinimumData(equipo);
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(cleanedRows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Equipos');
 
-    const cols = Object.keys(rows[0] || {}).map(() => ({ wch: 20 }));
+    const cols = Object.keys(cleanedRows[0] || rows[0] || {}).map(() => ({ wch: 20 }));
     worksheet['!cols'] = cols;
 
     const rawBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
@@ -545,9 +908,10 @@ app.get('/api/export', async (_req, res) => {
   }
 });
 
-app.get('/api/script', (_req, res) => {
+app.get('/api/script', verifyToken, requireAdmin, (_req, res) => {
   const script = `# URL del servidor web
 $UrlApi = 'http://10.51.17.205:5000/api/equipos'
+$UrlLogin = 'http://10.51.17.205:5000/api/login'
 
 function Leer-SiNo($mensaje) {
     do {
@@ -555,6 +919,15 @@ function Leer-SiNo($mensaje) {
         if ($valor -eq '') { return $null }
     } while ($valor -ne 'SI' -and $valor -ne 'NO')
     return $valor
+}
+
+function Convertir-SecureStringAPlano($secureString) {
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureString)
+    try {
+        return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    } finally {
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
 }
 
 Write-Host ""
@@ -600,6 +973,14 @@ elseif ($modelo -match 'TABLET|MOBILE|PHONE') { $tipoRecurso = 'DISPOSITIVO MOVI
 else { $tipoRecurso = 'CPU' }
 
 Write-Host ""
+Write-Host "Credenciales de administrador para enviar el inventario:" -ForegroundColor Yellow
+Write-Host ""
+
+$adminUser = Read-Host "Usuario admin"
+$adminPassSecure = Read-Host "Contrasena admin" -AsSecureString
+$adminPass = Convertir-SecureStringAPlano $adminPassSecure
+
+Write-Host ""
 Write-Host "Complete los datos administrativos del equipo:" -ForegroundColor Yellow
 Write-Host ""
 
@@ -621,49 +1002,49 @@ $etiquetado             = Read-Host "Etiquetado"
 $observacion            = Read-Host "Observacion"
 
 $datos = @{
-    nombre_pc               = $pc
-    nombre_host             = $pc
-    usuario                 = $usuario
-    dominio                 = $dominio
-    active_directory        = $dominio
-    direccion_ip            = $ip
-    ip                      = $ip
-    direccion_mac           = $mac
-    mac_address             = $mac
-    tipo_tarjeta_red        = $tipoNIC
-    sistema_operativo       = $so
-    ram_gb                  = $ramGB
-    ram                     = "$($ramGB)GB"
-    procesador              = $cpu
-    disco_gb                = $discoGB
-    disco                   = "$($discoGB)GB"
-    modelo_pc               = $modelo
-    modelo                  = $modelo
-    no_serie                = $serial
-    serie                   = $serial
-    tipo_recurso            = $tipoRecurso
-    marca                   = $marcaHw
+    nombre_pc                = $pc
+    nombre_host              = $pc
+    usuario                  = $usuario
+    dominio                  = $dominio
+    active_directory         = $dominio
+    direccion_ip             = $ip
+    ip                       = $ip
+    direccion_mac            = $mac
+    mac_address              = $mac
+    tipo_tarjeta_red         = $tipoNIC
+    sistema_operativo        = $so
+    ram_gb                   = $ramGB
+    ram                      = "$($ramGB) GB"
+    procesador               = $cpu
+    disco_gb                 = $discoGB
+    disco                    = "$($discoGB) GB"
+    modelo_pc                = $modelo
+    modelo                   = $modelo
+    no_serie                 = $serial
+    serie                    = $serial
+    tipo_recurso             = $tipoRecurso
+    marca                    = $marcaHw
 
-    establecimiento         = $establecimiento
-    departamento            = $departamento
-    area                    = $area
-    jefe_area               = $jefeArea
-    responsable_equipo      = $responsableEquipo
-    contrasena              = $contrasena
-    tiene_licencia_windows  = $tieneLicenciaWindows
-    codigo_licencia_windows = $codigoLicenciaWindows
-    tiene_licencia_office   = $tieneLicenciaOffice
-    antivirus               = $antivirus
-    tiene_mouse             = $tieneMouse
-    tiene_teclado           = $tieneTeclado
-    tiene_parlante          = $tieneParlante
-    ubicacion               = $ubicacion
-    etiquetado              = $etiquetado
-    observacion             = $observacion
-    observaciones           = $observacion
-    fecha_inventario        = (Get-Date -Format 'yyyy-MM-dd')
-    activo                  = 'SI'
-    empresa                 = 'Santa Priscila'
+    establecimiento          = $establecimiento
+    departamento             = $departamento
+    area                     = $area
+    jefe_area                = $jefeArea
+    responsable_equipo       = $responsableEquipo
+    contrasena               = $contrasena
+    tiene_licencia_windows   = $tieneLicenciaWindows
+    codigo_licencia_windows  = $codigoLicenciaWindows
+    tiene_licencia_office    = $tieneLicenciaOffice
+    antivirus                = $antivirus
+    tiene_mouse              = $tieneMouse
+    tiene_teclado            = $tieneTeclado
+    tiene_parlante           = $tieneParlante
+    ubicacion                = $ubicacion
+    etiquetado               = $etiquetado
+    observacion              = $observacion
+    observaciones            = $observacion
+    fecha_inventario         = (Get-Date -Format 'yyyy-MM-dd')
+    activo                   = 'SI'
+    empresa                  = 'Santa Priscila'
 }
 
 $json = $datos | ConvertTo-Json -Compress
@@ -671,7 +1052,24 @@ Write-Host "🌐 Enviando a: $UrlApi" -ForegroundColor Cyan
 Write-Host "📦 Datos JSON: $json" -ForegroundColor Cyan
 
 try {
-    $response = Invoke-WebRequest -Uri $UrlApi -Method POST -Body $json -ContentType 'application/json' -UseBasicParsing -TimeoutSec 10
+    $loginBody = @{
+        username = $adminUser
+        password = $adminPass
+    } | ConvertTo-Json -Compress
+
+    $loginResponse = Invoke-RestMethod -Uri $UrlLogin -Method POST -Body $loginBody -ContentType 'application/json' -TimeoutSec 10
+    $token = $loginResponse.token
+
+    if (-not $token) {
+        throw "No se recibió token del login"
+    }
+
+    $headers = @{
+        Authorization = "Bearer $token"
+    }
+
+    $response = Invoke-WebRequest -Uri $UrlApi -Method POST -Body $json -ContentType 'application/json' -Headers $headers -UseBasicParsing -TimeoutSec 10
+
     if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
         Write-Host "✅ Datos enviados correctamente" -ForegroundColor Green
     } else {
@@ -688,9 +1086,9 @@ Write-Host "  Usuario      : $usuario"
 Write-Host "  IP           : $ip"
 Write-Host "  MAC          : $mac"
 Write-Host "  SO           : $so"
-Write-Host "  RAM          : $($ramGB)GB"
+Write-Host "  RAM          : $($ramGB) GB"
 Write-Host "  CPU          : $cpu"
-Write-Host "  Disco        : $($discoGB)GB"
+Write-Host "  Disco        : $($discoGB) GB"
 Write-Host "  Modelo       : $modelo"
 Write-Host "  Serial       : $serial"
 Write-Host "  Departamento : $departamento"
@@ -703,6 +1101,7 @@ Read-Host "Presiona ENTER para cerrar"`;
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.send(script);
 });
+
 
 app.get('/api/stats', async (_req, res) => {
   try {

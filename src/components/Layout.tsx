@@ -1,15 +1,33 @@
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Monitor, PlusCircle, BarChart3, Download, LogIn, LogOut, Shield } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
 }
 
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`)
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+
   const [showLogin, setShowLogin] = useState(false);
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
@@ -17,17 +35,82 @@ export default function Layout() {
   const [error, setError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const logoutTimer = useRef<number | null>(null);
+
+  const handleLogout = (expired = false) => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    localStorage.removeItem('username');
+    setIsAdmin(false);
+  
+    if (logoutTimer.current) {
+      window.clearTimeout(logoutTimer.current);
+      logoutTimer.current = null;
+    }
+  
+    if (expired) {
+      setError('La sesión de administrador expiró. Inicia sesión nuevamente.');
+      setShowLogin(true);
+      return;
+    }
+  
+    window.location.reload();
+  };
+  
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const role = localStorage.getItem('role');
-    setIsAdmin(!!token && role === 'admin');
-  }, [location.pathname, showLogin]);
 
-  const navItems = [
-    { name: 'Listado', path: '/', icon: Monitor },
-    { name: 'Nuevo Equipo', path: '/add', icon: PlusCircle },
-    { name: 'Dashboard', path: '/stats', icon: BarChart3 },
-  ];
+    if (logoutTimer.current) {
+      window.clearTimeout(logoutTimer.current);
+      logoutTimer.current = null;
+    }
+
+    if (!token || role !== 'admin') {
+      setIsAdmin(false);
+      return;
+    }
+
+    const decoded = parseJwt(token);
+
+    if (!decoded?.exp) {
+      handleLogout(true);
+      return;
+    }
+
+    const expiresAt = decoded.exp * 1000;
+    const remaining = expiresAt - Date.now();
+
+    if (remaining <= 0) {
+      handleLogout(true);
+      navigate('/');
+      return;
+    }
+
+    setIsAdmin(true);
+
+    logoutTimer.current = window.setTimeout(() => {
+      handleLogout(true);
+      navigate('/');
+    }, remaining);
+
+    return () => {
+      if (logoutTimer.current) {
+        window.clearTimeout(logoutTimer.current);
+        logoutTimer.current = null;
+      }
+    };
+  }, [location.pathname, showLogin, navigate]);
+
+  const navItems = useMemo(
+    () => [
+      { name: 'Listado', path: '/', icon: Monitor },
+      ...(isAdmin ? [{ name: 'Nuevo Equipo', path: '/add', icon: PlusCircle }] : []),
+      { name: 'Dashboard', path: '/stats', icon: BarChart3 },
+    ],
+    [isAdmin]
+  );
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +121,7 @@ export default function Layout() {
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
       });
 
       const data = await res.json();
@@ -54,18 +137,13 @@ export default function Layout() {
       setIsAdmin(true);
       setShowLogin(false);
       setPassword('');
+
+      window.location.reload();
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión');
     } finally {
       setLogging(false);
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
-    localStorage.removeItem('username');
-    setIsAdmin(false);
   };
 
   return (
@@ -79,7 +157,7 @@ export default function Layout() {
         >
           <div
             className="w-full max-w-md rounded-3xl border border-white/15 bg-slate-900 p-6 shadow-2xl"
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-500/20 text-indigo-200">
@@ -87,7 +165,9 @@ export default function Layout() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-white">Login administrador</h2>
-                <p className="text-sm text-slate-300">Solo para editar y eliminar equipos</p>
+                <p className="text-sm text-slate-300">
+                  Solo para crear, editar, eliminar, importar, exportar y ver script
+                </p>
               </div>
             </div>
 
@@ -103,7 +183,7 @@ export default function Layout() {
                 <input
                   type="text"
                   value={username}
-                  onChange={e => setUsername(e.target.value)}
+                  onChange={(e) => setUsername(e.target.value)}
                   className="mt-2 h-11 w-full rounded-2xl border border-white/15 bg-white/[0.08] px-4 text-sm text-white focus:border-indigo-400/50 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
                 />
               </div>
@@ -113,7 +193,7 @@ export default function Layout() {
                 <input
                   type="password"
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="mt-2 h-11 w-full rounded-2xl border border-white/15 bg-white/[0.08] px-4 text-sm text-white focus:border-indigo-400/50 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
                 />
               </div>
@@ -164,17 +244,19 @@ export default function Layout() {
                 </div>
               ) : null}
 
-              <a
-                href="/api/export"
-                className="hidden sm:inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-all hover:border-indigo-400/40 hover:bg-indigo-500/15"
-              >
-                <Download className="h-4 w-4" />
-                Exportar Excel
-              </a>
+              {isAdmin && (
+                <a
+                  href="/api/export"
+                  className="hidden sm:inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-all hover:border-indigo-400/40 hover:bg-indigo-500/15"
+                >
+                  <Download className="h-4 w-4" />
+                  Exportar CSV
+                </a>
+              )}
 
               {isAdmin ? (
                 <button
-                  onClick={handleLogout}
+                  onClick={() => handleLogout(false)}
                   className="inline-flex items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/15 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-500/20"
                 >
                   <LogOut className="h-4 w-4" />
@@ -182,7 +264,10 @@ export default function Layout() {
                 </button>
               ) : (
                 <button
-                  onClick={() => setShowLogin(true)}
+                  onClick={() => {
+                    setError('');
+                    setShowLogin(true);
+                  }}
                   className="inline-flex items-center gap-2 rounded-xl border border-indigo-400/25 bg-indigo-500/15 px-4 py-2 text-sm font-medium text-indigo-100 transition hover:bg-indigo-500/20"
                 >
                   <LogIn className="h-4 w-4" />
@@ -197,7 +282,7 @@ export default function Layout() {
       <nav className="sticky top-[72px] z-30 border-b border-white/15 bg-slate-950/70 backdrop-blur-xl">
         <div className="mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center gap-2 py-3">
-            {navItems.map(item => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const isActive =
                 location.pathname === item.path ||
@@ -220,13 +305,15 @@ export default function Layout() {
               );
             })}
 
-            <a
-              href="/api/export"
-              className="inline-flex sm:hidden items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition-all hover:border-white/25 hover:bg-white/15"
-            >
-              <Download className="h-4 w-4" />
-              Exportar Excel
-            </a>
+            {isAdmin && (
+              <a
+                href="/api/export"
+                className="inline-flex sm:hidden items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition-all hover:border-white/25 hover:bg-white/15"
+              >
+                <Download className="h-4 w-4" />
+                Exportar CSV
+              </a>
+            )}
           </div>
         </div>
       </nav>
