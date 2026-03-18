@@ -42,21 +42,33 @@ export default function Layout() {
     localStorage.removeItem('role');
     localStorage.removeItem('username');
     setIsAdmin(false);
-  
+
     if (logoutTimer.current) {
       window.clearTimeout(logoutTimer.current);
       logoutTimer.current = null;
     }
-  
+
     if (expired) {
-      setError('La sesión de administrador expiró. Inicia sesión nuevamente.');
-      setShowLogin(true);
+      sessionStorage.setItem(
+        'session_expired_message',
+        'La sesión de administrador expiró. Inicia sesión nuevamente.'
+      );
+      window.location.reload();
       return;
     }
-  
+
     window.location.reload();
   };
-  
+
+  useEffect(() => {
+    const flashMessage = sessionStorage.getItem('session_expired_message');
+
+    if (flashMessage) {
+      setError(flashMessage);
+      setShowLogin(true);
+      sessionStorage.removeItem('session_expired_message');
+    }
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');

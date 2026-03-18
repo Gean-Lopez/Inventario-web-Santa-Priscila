@@ -98,6 +98,9 @@ export default function List() {
   const [equipos, setEquipos] = useState<Equipo[]>([]);
   const [search, setSearch] = useState('');
   const [filterBy, setFilterBy] = useState('all');
+  const [sortBy, setSortBy] = useState('id');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -142,8 +145,8 @@ export default function List() {
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/equipos?q=${encodeURIComponent(search)}&page=${page}&limit=${pageSize}&filterBy=${encodeURIComponent(filterBy)}`
-      );
+        `/api/equipos?q=${encodeURIComponent(search)}&page=${page}&limit=${pageSize}&filterBy=${encodeURIComponent(filterBy)}&sortBy=${encodeURIComponent(sortBy)}&sortDir=${sortDir}`
+      );   
       const data = await res.json();
       setEquipos(data.data || []);
       setTotalPages(data.totalPages || 1);
@@ -155,7 +158,7 @@ export default function List() {
 
   useEffect(() => {
     fetchEquipos();
-  }, [search, page, pageSize, filterBy]);
+  }, [search, page, pageSize, filterBy, sortBy, sortDir]);  
 
   useEffect(() => {
     if ((location.state as any)?.refresh) {
@@ -753,7 +756,7 @@ export default function List() {
                   <Copy size={14} />
                   {copied ? '¡Copiado!' : 'Copiar'}
                 </button>
-                <button
+                <button 
                   onClick={handleDescargar}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
                 >
@@ -916,7 +919,7 @@ export default function List() {
             Inventario de Equipos
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-200">
-            Administra equipos, consulta detalles, importa registros y exporta información desde un panel moderno.
+            Administra equipos, consulta detalles, importa registros y exporta información.
           </p>
         </div>
 
@@ -983,64 +986,142 @@ export default function List() {
         </div>
       )}
 
-      <div className="rounded-3xl border border-white/15 bg-slate-900/70 p-4 shadow-xl shadow-black/10">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex w-full flex-col gap-3 lg:max-w-4xl lg:flex-row">
-            <div className="relative flex-1">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-              <input
-                type="text"
-                placeholder="Buscar por el valor del filtro seleccionado..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="h-12 w-full rounded-2xl border border-white/15 bg-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-slate-400 focus:border-indigo-400/50 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
-              />
-            </div>
-
-            <div>
-              <select
-                value={filterBy}
-                onChange={(e) => {
-                  setFilterBy(e.target.value);
-                  setPage(1);
-                }}
-                className="h-12 rounded-2xl border border-white/15 bg-white/[0.08] px-4 text-sm text-white focus:border-indigo-400/50 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
-              >
-                <option value="all" className="bg-slate-900">Filtrar Por</option>
-                <option value="nombre_pc" className="bg-slate-900">Nombre PC</option>
-                <option value="nombre_host" className="bg-slate-900">Nombre Host</option>
-                <option value="usuario" className="bg-slate-900">Usuario</option>
-                <option value="responsable_equipo" className="bg-slate-900">Responsable</option>
-                <option value="ip" className="bg-slate-900">IP</option>
-                <option value="mac_address" className="bg-slate-900">MAC</option>
-                <option value="departamento" className="bg-slate-900">Departamento</option>
-                <option value="area" className="bg-slate-900">Área</option>
-                <option value="establecimiento" className="bg-slate-900">Establecimiento</option>
-                <option value="serie" className="bg-slate-900">Serie</option>
-                <option value="marca" className="bg-slate-900">Marca</option>
-                <option value="modelo" className="bg-slate-900">Modelo</option>
-                <option value="procesador" className="bg-slate-900">Procesador</option>
-                <option value="tipo_recurso" className="bg-slate-900">Tipo recurso</option>
-                <option value="activo" className="bg-slate-900">Estado</option>
-                <option value="antivirus" className="bg-slate-900">Antivirus</option>
-                <option value="etiquetado" className="bg-slate-900">Etiquetado</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-2xl border border-white/15 bg-white/[0.08] px-4 py-2 text-sm text-slate-100">
-              Seleccionados <span className="font-semibold text-white">{selectedIds.length}</span>
-            </div>
-            <div className="rounded-2xl border border-white/15 bg-white/[0.08] px-4 py-2 text-sm text-slate-100">
-              Total registros <span className="font-semibold text-white">{total}</span>
-            </div>
-          </div>
+<div className="rounded-3xl border border-white/15 bg-slate-900/70 p-4 shadow-xl shadow-black/10">
+  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex w-full flex-col gap-4 lg:max-w-6xl">
+      <div className="w-full">
+        <label
+          htmlFor="search"
+          className="mb-1 block text-xs font-medium uppercase tracking-[0.16em] text-slate-300"
+        >
+          Buscar
+        </label>
+        <div className="relative">
+          <Search
+            size={16}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"
+          />
+          <input
+            id="search"
+            type="text"
+            placeholder="Buscar por el valor del filtro seleccionado..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="h-12 w-full rounded-2xl border border-white/15 bg-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-slate-400 focus:border-indigo-400/50 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
+          />
         </div>
       </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+  <div className="flex min-w-[220px] flex-col gap-1">
+    <label
+      htmlFor="filterBy"
+      className="text-xs font-medium uppercase tracking-[0.16em] text-slate-300"
+    >
+      Filtrar por
+    </label>
+    <select
+      id="filterBy"
+      value={filterBy}
+      onChange={(e) => {
+        setFilterBy(e.target.value);
+        setPage(1);
+      }}
+      className="h-12 rounded-2xl border border-white/15 bg-white/[0.08] px-4 text-sm text-white focus:border-indigo-400/50 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
+    >
+      <option value="all" className="bg-slate-900">Todos los campos</option>
+      <option value="nombre_pc" className="bg-slate-900">Nombre PC</option>
+      <option value="nombre_host" className="bg-slate-900">Nombre Host</option>
+      <option value="usuario" className="bg-slate-900">Usuario</option>
+      <option value="responsable_equipo" className="bg-slate-900">Responsable</option>
+      <option value="ip" className="bg-slate-900">IP</option>
+      <option value="mac_address" className="bg-slate-900">MAC</option>
+      <option value="departamento" className="bg-slate-900">Departamento</option>
+      <option value="area" className="bg-slate-900">Área</option>
+      <option value="establecimiento" className="bg-slate-900">Establecimiento</option>
+      <option value="serie" className="bg-slate-900">Serie</option>
+      <option value="marca" className="bg-slate-900">Marca</option>
+      <option value="modelo" className="bg-slate-900">Modelo</option>
+      <option value="procesador" className="bg-slate-900">Procesador</option>
+      <option value="tipo_recurso" className="bg-slate-900">Tipo recurso</option>
+      <option value="activo" className="bg-slate-900">Estado</option>
+      <option value="antivirus" className="bg-slate-900">Antivirus</option>
+      <option value="etiquetado" className="bg-slate-900">Etiquetado</option>
+    </select>
+  </div>
+
+  <div className="flex min-w-[220px] flex-col gap-1">
+    <label
+      htmlFor="sortBy"
+      className="text-xs font-medium uppercase tracking-[0.16em] text-slate-300"
+    >
+      Ordenar por
+    </label>
+    <select
+      id="sortBy"
+      value={sortBy}
+      onChange={(e) => {
+        setSortBy(e.target.value);
+        setPage(1);
+      }}
+      className="h-12 rounded-2xl border border-white/15 bg-white/[0.08] px-4 text-sm text-white focus:border-indigo-400/50 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
+    >
+      <option value="id" className="bg-slate-900">ID</option>
+      <option value="fecha_inventario" className="bg-slate-900">Fecha inventario</option>
+      <option value="fecha_adquisicion" className="bg-slate-900">Fecha adquisición</option>
+      <option value="fecha_instalacion" className="bg-slate-900">Fecha instalación</option>
+      <option value="fecha_mantenimiento" className="bg-slate-900">Fecha mantenimiento</option>
+      <option value="nombre_host" className="bg-slate-900">Nombre host</option>
+      <option value="nombre_pc" className="bg-slate-900">Nombre PC</option>
+      <option value="responsable_equipo" className="bg-slate-900">Responsable</option>
+      <option value="departamento" className="bg-slate-900">Departamento</option>
+      <option value="area" className="bg-slate-900">Área</option>
+      <option value="serie" className="bg-slate-900">Serie</option>
+      <option value="marca" className="bg-slate-900">Marca</option>
+      <option value="modelo" className="bg-slate-900">Modelo</option>
+      <option value="activo" className="bg-slate-900">Estado</option>
+    </select>
+  </div>
+
+  <div className="flex min-w-[180px] flex-col gap-1">
+    <label
+      htmlFor="sortDir"
+      className="text-xs font-medium uppercase tracking-[0.16em] text-slate-300"
+    >
+      Dirección
+    </label>
+    <select
+      id="sortDir"
+      value={sortDir}
+      onChange={(e) => {
+        setSortDir(e.target.value as 'asc' | 'desc');
+        setPage(1);
+      }}
+      className="h-12 rounded-2xl border border-white/15 bg-white/[0.08] px-4 text-sm text-white focus:border-indigo-400/50 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
+    >
+      <option value="desc" className="bg-slate-900">Descendente</option>
+      <option value="asc" className="bg-slate-900">Ascendente</option>
+    </select>
+  </div>
+
+  <div className="flex h-12 items-center rounded-2xl border border-white/15 bg-white/[0.08] px-4 text-sm text-slate-100">
+    Seleccionados <span className="ml-1 font-semibold text-white">{selectedIds.length}</span>
+  </div>
+
+  <div className="flex h-12 items-center rounded-2xl border border-white/15 bg-white/[0.08] px-4 text-sm text-slate-100">
+    Total registros <span className="ml-1 font-semibold text-white">{total}</span>
+  </div>
+</div>
+
+    </div>
+
+  
+  </div>
+</div>
+
 
       <div className="rounded-3xl border border-white/15 bg-slate-900/70 shadow-2xl shadow-black/20">
         <div className="flex items-center justify-between border-b border-white/15 bg-white/[0.06] px-5 py-4">

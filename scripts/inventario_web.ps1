@@ -1,3 +1,6 @@
+Clear-Host
+$Host.UI.RawUI.WindowTitle = "Inventario de Equipos - Santa Priscila"
+
 # URL del servidor web
 $UrlApi = 'http://10.51.17.205:5000/api/equipos'
 $UrlLogin = 'http://10.51.17.205:5000/api/login'
@@ -19,11 +22,81 @@ function Convertir-SecureStringAPlano($secureString) {
     }
 }
 
-Write-Host ""
-Write-Host "==============================" -ForegroundColor Cyan
-Write-Host " INVENTARIO DE EQUIPOS" -ForegroundColor Cyan
-Write-Host "==============================" -ForegroundColor Cyan
-Write-Host ""
+function Titulo-Seccion($texto) {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor DarkCyan
+    Write-Host " $texto" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor DarkCyan
+    Write-Host ""
+}
+
+function Mostrar-Resumen($pc, $usuario, $ip, $mac, $so, $ramGB, $cpu, $discoGB, $modelo, $serial, $departamento, $area, $responsableEquipo) {
+    Titulo-Seccion "DATOS RECOPILADOS"
+    Write-Host "  PC           : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $pc -ForegroundColor White
+
+    Write-Host "  Usuario      : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $usuario -ForegroundColor White
+
+    Write-Host "  IP           : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $ip -ForegroundColor White
+
+    Write-Host "  MAC          : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $mac -ForegroundColor White
+
+    Write-Host "  SO           : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $so -ForegroundColor White
+
+    Write-Host "  RAM          : " -NoNewline -ForegroundColor DarkGray
+    Write-Host "$($ramGB) GB" -ForegroundColor White
+
+    Write-Host "  CPU          : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $cpu -ForegroundColor White
+
+    Write-Host "  Disco        : " -NoNewline -ForegroundColor DarkGray
+    Write-Host "$($discoGB) GB" -ForegroundColor White
+
+    Write-Host "  Modelo       : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $modelo -ForegroundColor White
+
+    Write-Host "  Serial       : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $serial -ForegroundColor White
+
+    Write-Host "  Departamento : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $departamento -ForegroundColor White
+
+    Write-Host "  Area         : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $area -ForegroundColor White
+
+    Write-Host "  Responsable  : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $responsableEquipo -ForegroundColor White
+    Write-Host ""
+}
+
+function Mostrar-ResultadoFinal($estadoFinal, $detalleFinal) {
+    Titulo-Seccion "RESULTADO FINAL"
+
+    switch ($estadoFinal) {
+        'OK' {
+            Write-Host "  Datos enviados" -ForegroundColor Green
+            Write-Host "  Detalle: $detalleFinal" -ForegroundColor Green
+        }
+        'DUPLICADO' {
+            Write-Host "  Equipo duplicado" -ForegroundColor Yellow
+            Write-Host "  Detalle: $detalleFinal" -ForegroundColor Yellow
+        }
+        default {
+            Write-Host "  Error al enviar a la base" -ForegroundColor Red
+            Write-Host "  Detalle: $detalleFinal" -ForegroundColor Red
+        }
+    }
+
+    Write-Host ""
+}
+
+Titulo-Seccion "INVENTARIO DE EQUIPOS"
+Write-Host "Iniciando asistente de registro..." -ForegroundColor Gray
+Start-Sleep -Milliseconds 500
 
 $pc       = $env:COMPUTERNAME
 $usuario  = $env:USERNAME
@@ -61,17 +134,49 @@ elseif ($modelo -match 'LAPTOP|NOTEBOOK|BOOK|ThinkPad|EliteBook|Latitude' -or $p
 elseif ($modelo -match 'TABLET|MOBILE|PHONE') { $tipoRecurso = 'DISPOSITIVO MOVIL' }
 else { $tipoRecurso = 'CPU' }
 
-Write-Host ""
-Write-Host "Credenciales de administrador para enviar el inventario:" -ForegroundColor Yellow
-Write-Host ""
+Titulo-Seccion "AUTENTICACION ADMINISTRADOR"
 
-$adminUser = Read-Host "Usuario admin"
-$adminPassSecure = Read-Host "Contrasena admin" -AsSecureString
-$adminPass = Convertir-SecureStringAPlano $adminPassSecure
+$token = $null
+$loginCorrecto = $false
 
-Write-Host ""
-Write-Host "Complete los datos administrativos del equipo:" -ForegroundColor Yellow
-Write-Host ""
+while (-not $loginCorrecto) {
+    $adminUser = Read-Host "Usuario admin (o escriba SALIR para cancelar)"
+    if ($adminUser.Trim().ToUpper() -eq 'SALIR') {
+        Write-Host ""
+        Write-Host "Proceso cancelado por el usuario." -ForegroundColor Yellow
+        Write-Host ""
+        Read-Host "Presiona ENTER para cerrar"
+        exit
+    }
+
+    $adminPassSecure = Read-Host "Contrasena admin" -AsSecureString
+    $adminPass = Convertir-SecureStringAPlano $adminPassSecure
+
+    try {
+        $loginBody = @{
+            username = $adminUser
+            password = $adminPass
+        } | ConvertTo-Json -Compress
+
+        $loginResponse = Invoke-RestMethod -Uri $UrlLogin -Method POST -Body $loginBody -ContentType 'application/json' -TimeoutSec 10
+
+        if (-not $loginResponse.token) {
+            throw "No se recibió token del login"
+        }
+
+        $token = $loginResponse.token
+        $loginCorrecto = $true
+        Write-Host ""
+        Write-Host "Acceso correcto." -ForegroundColor Green
+    }
+    catch {
+        Write-Host ""
+        Write-Host "Usuario o contrasena incorrectos. Intente nuevamente." -ForegroundColor Red
+        Write-Host ""
+    }
+}
+
+Titulo-Seccion "DATOS ADMINISTRATIVOS DEL EQUIPO"
 
 $establecimiento        = Read-Host "Establecimiento"
 $departamento           = Read-Host "Departamento"
@@ -137,22 +242,14 @@ $datos = @{
 }
 
 $json = $datos | ConvertTo-Json -Compress
-Write-Host "🌐 Enviando a: $UrlApi" -ForegroundColor Cyan
-Write-Host "📦 Datos JSON: $json" -ForegroundColor Cyan
+
+$estadoFinal = 'ERROR'
+$detalleFinal = 'No se pudo completar el proceso.'
+
+Titulo-Seccion "ENVIO DE INFORMACION"
+Write-Host "Enviando datos al servidor..." -ForegroundColor Cyan
 
 try {
-    $loginBody = @{
-        username = $adminUser
-        password = $adminPass
-    } | ConvertTo-Json -Compress
-
-    $loginResponse = Invoke-RestMethod -Uri $UrlLogin -Method POST -Body $loginBody -ContentType 'application/json' -TimeoutSec 10
-    $token = $loginResponse.token
-
-    if (-not $token) {
-        throw "No se recibió token del login"
-    }
-
     $headers = @{
         Authorization = "Bearer $token"
     }
@@ -160,29 +257,73 @@ try {
     $response = Invoke-WebRequest -Uri $UrlApi -Method POST -Body $json -ContentType 'application/json' -Headers $headers -UseBasicParsing -TimeoutSec 10
 
     if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
-        Write-Host "✅ Datos enviados correctamente" -ForegroundColor Green
+        $estadoFinal = 'OK'
+        $detalleFinal = 'Datos enviados correctamente.'
     } else {
-        Write-Host "⚠️ Respuesta inesperada: $($response.StatusCode)" -ForegroundColor Yellow
+        $estadoFinal = 'ERROR'
+        $detalleFinal = "Respuesta inesperada del servidor: $($response.StatusCode)"
     }
-} catch {
-    Write-Host "❌ Error: $($_.Exception.Message)" -ForegroundColor Red
+}
+catch {
+    $statusCode = $null
+    $responseBody = $null
+
+    if ($_.Exception.Response) {
+        try {
+            $statusCode = $_.Exception.Response.StatusCode.value__
+        } catch {
+            $statusCode = $null
+        }
+
+        try {
+            $stream = $_.Exception.Response.GetResponseStream()
+            if ($stream) {
+                $reader = New-Object System.IO.StreamReader($stream)
+                $responseBody = $reader.ReadToEnd()
+                $reader.Close()
+            }
+        } catch {
+            $responseBody = $null
+        }
+    }
+
+    if ($statusCode -eq 409) {
+        $estadoFinal = 'DUPLICADO'
+        $detalleFinal = 'Equipo duplicado. Ya existe un registro similar en la base de datos.'
+    }
+    elseif ($responseBody -match 'duplicado|duplicate|ya existe') {
+        $estadoFinal = 'DUPLICADO'
+        $detalleFinal = 'Equipo duplicado. Ya existe un registro similar en la base de datos.'
+    }
+    else {
+        $estadoFinal = 'ERROR'
+        if ($statusCode) {
+            $detalleFinal = "Error al enviar a la base de datos. Código HTTP: $statusCode"
+        } else {
+            $detalleFinal = "Error al enviar a la base de datos: $($_.Exception.Message)"
+        }
+    }
 }
 
-Write-Host ""
-Write-Host "📊 DATOS RECOPILADOS:" -ForegroundColor Cyan
-Write-Host "  PC           : $pc"
-Write-Host "  Usuario      : $usuario"
-Write-Host "  IP           : $ip"
-Write-Host "  MAC          : $mac"
-Write-Host "  SO           : $so"
-Write-Host "  RAM          : $($ramGB) GB"
-Write-Host "  CPU          : $cpu"
-Write-Host "  Disco        : $($discoGB) GB"
-Write-Host "  Modelo       : $modelo"
-Write-Host "  Serial       : $serial"
-Write-Host "  Departamento : $departamento"
-Write-Host "  Area         : $area"
-Write-Host "  Responsable  : $responsableEquipo"
-Write-Host ""
+Start-Sleep -Milliseconds 300
+Clear-Host
+$Host.UI.RawUI.WindowTitle = "Inventario de Equipos - Resultado final"
+
+Mostrar-Resumen `
+    -pc $pc `
+    -usuario $usuario `
+    -ip $ip `
+    -mac $mac `
+    -so $so `
+    -ramGB $ramGB `
+    -cpu $cpu `
+    -discoGB $discoGB `
+    -modelo $modelo `
+    -serial $serial `
+    -departamento $departamento `
+    -area $area `
+    -responsableEquipo $responsableEquipo
+
+Mostrar-ResultadoFinal -estadoFinal $estadoFinal -detalleFinal $detalleFinal
 
 Read-Host "Presiona ENTER para cerrar"
