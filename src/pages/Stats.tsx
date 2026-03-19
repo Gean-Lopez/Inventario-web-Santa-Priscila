@@ -42,7 +42,7 @@ export default function Stats() {
 
   if (loading) {
     return (
-      <div className="py-16 text-center text-sm text-slate-300">
+      <div className="inventory-stats py-16 text-center text-sm text-[var(--text-soft)]">
         Cargando dashboard...
       </div>
     );
@@ -50,7 +50,7 @@ export default function Stats() {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
+      <div className="inventory-stats rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
         <div className="flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-red-200" />
           <p className="text-sm text-red-100">{error}</p>
@@ -94,15 +94,15 @@ export default function Stats() {
       value: stats.totalPcs,
       subtitle: 'Equipos registrados en el sistema',
       icon: Monitor,
-      iconClass: 'text-blue-200',
-      iconBg: 'bg-blue-500/10 border-blue-500/20',
+      iconClass: 'text-[var(--primary)]',
+      iconBg: 'bg-[var(--primary-soft)] border-[var(--border)]',
     },
     {
       title: 'Estado de equipos',
       value: (
         <div className="space-y-1 text-sm">
           <div>
-            <span className="font-semibold text-emerald-200">{stats.activos}</span>{' '}
+            <span className="font-semibold text-emerald-600 dark:text-emerald-300">{stats.activos}</span>{' '}
             <span className="text-slate-300">activos</span>
           </div>
           <div>
@@ -113,7 +113,7 @@ export default function Stats() {
       ),
       subtitle: 'Según campo ACTIVO del inventario',
       icon: Activity,
-      iconClass: 'text-emerald-200',
+      iconClass: 'text-emerald-600 dark:text-emerald-300',
       iconBg: 'bg-emerald-500/10 border-emerald-500/20',
     },
     {
@@ -126,7 +126,7 @@ export default function Stats() {
               {stats.licencias?.conLicenciaWindows || 0}
             </span>{' '}
             con /{' '}
-            <span className="font-semibold text-amber-200">
+            <span className="font-semibold text-amber-600 dark:text-amber-300">
               {stats.licencias?.sinLicenciaWindows || 0}
             </span>{' '}
             sin
@@ -137,7 +137,7 @@ export default function Stats() {
               {stats.licencias?.conLicenciaOffice || 0}
             </span>{' '}
             con /{' '}
-            <span className="font-semibold text-amber-200">
+            <span className="font-semibold text-amber-600 dark:text-amber-300">
               {stats.licencias?.sinLicenciaOffice || 0}
             </span>{' '}
             sin
@@ -146,24 +146,23 @@ export default function Stats() {
       ),
       subtitle: 'Equipos con o sin licencias registradas',
       icon: ShieldCheck,
-      iconClass: 'text-cyan-200',
+      iconClass: 'text-cyan-600 dark:text-cyan-300',
       iconBg: 'bg-cyan-500/10 border-cyan-500/20',
     },
   ];
 
-  const chartCardClass =
-    'rounded-[28px] border border-slate-800 bg-slate-900/85 p-6 shadow-2xl shadow-black/20';
+  const chartCardClass = 'surface-card rounded-[30px] p-6';
 
   return (
-    <div className="space-y-8">
+    <div className="inventory-stats space-y-8">
       <div>
-        <span className="mb-2 inline-flex rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-200">
+        <span className="apple-chip mb-2 inline-flex rounded-full px-3 py-1 text-xs font-medium">
           Panel analítico
         </span>
-        <h1 className="text-3xl font-semibold tracking-tight text-white">
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">
           Dashboard de Inventario
         </h1>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-[var(--text-soft)]">
           Resumen visual de equipos, licencias, áreas y sistemas operativos.
         </p>
       </div>
@@ -175,7 +174,7 @@ export default function Stats() {
           return (
             <div
               key={idx}
-              className="rounded-[28px] border border-slate-800 bg-slate-900/85 p-6 shadow-2xl shadow-black/20"
+              className="surface-card rounded-[30px] p-6"
             >
               <div className="mb-6 flex items-start justify-between gap-3">
                 <div>
@@ -245,10 +244,10 @@ export default function Stats() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#0f172a',
-                      border: '1px solid rgba(148,163,184,0.18)',
+                      backgroundColor: 'var(--bg-elevated-strong)',
+                      border: '1px solid var(--border)',
                       borderRadius: '16px',
-                      color: '#e5eefc',
+                      color: 'var(--text)',
                     }}
                   />
                   <Legend />
@@ -277,21 +276,21 @@ export default function Stats() {
                   data={areaChart}
                   margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#243244" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis
                     dataKey="name"
-                    stroke="#94a3b8"
+                    stroke="var(--text-soft)"
                     angle={-15}
                     textAnchor="end"
                     height={60}
                   />
-                  <YAxis stroke="#94a3b8" />
+                  <YAxis stroke="var(--text-soft)" />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#0f172a',
-                      border: '1px solid rgba(148,163,184,0.18)',
+                      backgroundColor: 'var(--bg-elevated-strong)',
+                      border: '1px solid var(--border)',
                       borderRadius: '16px',
-                      color: '#e5eefc',
+                      color: 'var(--text)',
                     }}
                   />
                   <Bar
@@ -328,20 +327,20 @@ export default function Stats() {
                 layout="vertical"
                 margin={{ top: 10, right: 20, left: 30, bottom: 10 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#243244" />
-                <XAxis type="number" stroke="#94a3b8" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis type="number" stroke="var(--text-soft)" />
                 <YAxis
                   dataKey="name"
                   type="category"
-                  stroke="#94a3b8"
+                  stroke="var(--text-soft)"
                   width={170}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#0f172a',
-                    border: '1px solid rgba(148,163,184,0.18)',
+                    backgroundColor: 'var(--bg-elevated-strong)',
+                    border: '1px solid var(--border)',
                     borderRadius: '16px',
-                    color: '#e5eefc',
+                    color: 'var(--text)',
                   }}
                 />
                 <Bar

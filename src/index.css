@@ -1,19 +1,55 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
+  --bg: #f5f5f7;
+  --bg-elevated: rgba(255, 255, 255, 0.78);
+  --bg-elevated-strong: rgba(255, 255, 255, 0.92);
+  --bg-soft: rgba(255, 255, 255, 0.58);
+  --bg-muted: rgba(245, 245, 247, 0.92);
+  --overlay: rgba(245, 245, 247, 0.72);
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --text: #111827;
+  --text-soft: #6b7280;
+  --text-faint: #9ca3af;
+  --primary: #0071e3;
+  --primary-strong: #005fcc;
+  --primary-soft: rgba(0, 113, 227, 0.12);
+  --success: #0a7f5a;
+  --success-soft: rgba(16, 185, 129, 0.14);
+  --warning: #b76a00;
+  --warning-soft: rgba(245, 158, 11, 0.14);
+  --danger: #c2410c;
+  --danger-soft: rgba(239, 68, 68, 0.14);
+  --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 22px 60px rgba(15, 23, 42, 0.1);
+}
+
+html.dark {
   color-scheme: dark;
-  --bg: #0b1220;
-  --bg-elevated: #111827;
-  --bg-soft: #0f172a;
-  --border: rgba(148, 163, 184, 0.16);
-  --border-strong: rgba(148, 163, 184, 0.24);
-  --text: #e5eefc;
-  --text-soft: #94a3b8;
-  --primary: #3b82f6;
-  --primary-soft: rgba(59, 130, 246, 0.16);
-  --success-soft: rgba(34, 197, 94, 0.16);
-  --warning-soft: rgba(245, 158, 11, 0.16);
-  --danger-soft: rgba(239, 68, 68, 0.16);
+  --bg: #0f1115;
+  --bg-elevated: rgba(28, 28, 30, 0.78);
+  --bg-elevated-strong: rgba(28, 28, 30, 0.92);
+  --bg-soft: rgba(44, 44, 46, 0.62);
+  --bg-muted: rgba(22, 24, 29, 0.94);
+  --overlay: rgba(10, 12, 18, 0.68);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text: #f5f5f7;
+  --text-soft: #b3b3b8;
+  --text-faint: #8f9096;
+  --primary: #4aa3ff;
+  --primary-strong: #2890ff;
+  --primary-soft: rgba(74, 163, 255, 0.16);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.16);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.16);
+  --danger: #fb7185;
+  --danger-soft: rgba(251, 113, 133, 0.16);
+  --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.22);
+  --shadow-card: 0 28px 72px rgba(0, 0, 0, 0.28);
 }
 
 html {
@@ -21,15 +57,33 @@ html {
 }
 
 body {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+  font-family:
+    "SF Pro Display",
+    "SF Pro Text",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 28%),
-    linear-gradient(to bottom, #0b1220 0%, #0f172a 45%, #111827 100%);
+    radial-gradient(circle at top left, rgba(0, 113, 227, 0.08), transparent 30%),
+    radial-gradient(circle at top right, rgba(148, 163, 184, 0.12), transparent 26%),
+    linear-gradient(180deg, #ffffff 0%, #f7f8fb 34%, #f2f3f7 100%);
   color: var(--text);
   min-height: 100vh;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition:
+    background 220ms ease,
+    color 220ms ease;
+}
+
+html.dark body {
+  background:
+    radial-gradient(circle at top left, rgba(74, 163, 255, 0.12), transparent 24%),
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 22%),
+    linear-gradient(180deg, #0f1115 0%, #13161c 36%, #171a21 100%);
 }
 
 * {
@@ -62,16 +116,16 @@ button:disabled {
 
 input::placeholder,
 textarea::placeholder {
-  color: #64748b;
+  color: var(--text-faint);
 }
 
 ::selection {
-  background: rgba(59, 130, 246, 0.28);
-  color: #ffffff;
+  background: rgba(0, 113, 227, 0.18);
+  color: var(--text);
 }
 
 :focus-visible {
-  outline: 2px solid rgba(96, 165, 250, 0.65);
+  outline: 2px solid rgba(0, 113, 227, 0.35);
   outline-offset: 2px;
 }
 
@@ -81,18 +135,205 @@ textarea::placeholder {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.88);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.6);
+  background: rgba(107, 114, 128, 0.42);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.78);
+  background: rgba(107, 114, 128, 0.62);
   border: 2px solid transparent;
   background-clip: padding-box;
+}
+
+.surface-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(24px);
+}
+
+.surface-panel {
+  background: var(--bg-elevated-strong);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(24px);
+}
+
+.surface-muted {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+}
+
+.apple-input {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+html.dark .apple-input {
+  background: rgba(31, 33, 39, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.apple-input:focus {
+  border-color: rgba(0, 113, 227, 0.4);
+  box-shadow:
+    0 0 0 4px rgba(0, 113, 227, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  outline: none;
+}
+
+.apple-button-primary {
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%);
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(0, 113, 227, 0.22);
+}
+
+.apple-button-secondary {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.apple-chip {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border: 1px solid rgba(0, 113, 227, 0.14);
+}
+
+.inventory-list,
+.inventory-form,
+.inventory-stats {
+  color: var(--text);
+}
+
+.inventory-list .surface-panel,
+.inventory-form .surface-panel,
+.inventory-stats .surface-panel {
+  border-radius: 28px;
+}
+
+.inventory-list .metric-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(20px);
+}
+
+.inventory-list .table-shell {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(24px);
+}
+
+.inventory-list table thead,
+.inventory-list .thead-surface {
+  background: var(--bg-muted);
+}
+
+.inventory-list table tbody tr {
+  border-color: var(--border);
+}
+
+.inventory-list table tbody tr:hover {
+  background: rgba(0, 113, 227, 0.05);
+}
+
+html.dark .inventory-list table tbody tr:hover {
+  background: rgba(74, 163, 255, 0.08);
+}
+
+.inventory-form .section-header {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.58));
+  border: 1px solid var(--border);
+}
+
+html.dark .inventory-form .section-header {
+  background: linear-gradient(180deg, rgba(34, 36, 42, 0.9), rgba(28, 28, 30, 0.72));
+}
+
+.inventory-form label,
+.inventory-list label,
+.inventory-stats label {
+  color: var(--text);
+}
+
+.inventory-form .text-slate-100,
+.inventory-form .text-slate-200,
+.inventory-form .text-slate-300,
+.inventory-form .text-white,
+.inventory-list .text-slate-100,
+.inventory-list .text-slate-200,
+.inventory-list .text-slate-300,
+.inventory-list .text-white,
+.inventory-stats .text-slate-100,
+.inventory-stats .text-slate-200,
+.inventory-stats .text-slate-300,
+.inventory-stats .text-white {
+  color: var(--text) !important;
+}
+
+.inventory-form .text-slate-400,
+.inventory-form .text-slate-500,
+.inventory-list .text-slate-400,
+.inventory-list .text-slate-500,
+.inventory-stats .text-slate-400,
+.inventory-stats .text-slate-500 {
+  color: var(--text-soft) !important;
+}
+
+.inventory-form .border-slate-800,
+.inventory-form .border-slate-700,
+.inventory-form .border-slate-700\/70,
+.inventory-list .border-slate-800,
+.inventory-list .border-slate-700,
+.inventory-list .border-slate-700\/70,
+.inventory-list .border-slate-800\/80,
+.inventory-stats .border-slate-800,
+.inventory-stats .border-slate-700 {
+  border-color: var(--border) !important;
+}
+
+.inventory-form .bg-slate-900\/85,
+.inventory-form .bg-slate-900\/95,
+.inventory-form .bg-slate-950\/40,
+.inventory-form .bg-slate-950\/70,
+.inventory-form .bg-slate-800\/80,
+.inventory-list .bg-slate-900\/85,
+.inventory-list .bg-slate-900\/95,
+.inventory-list .bg-slate-950,
+.inventory-list .bg-slate-950\/40,
+.inventory-list .bg-slate-950\/70,
+.inventory-list .bg-slate-950\/80,
+.inventory-list .bg-slate-800,
+.inventory-list .bg-slate-800\/80,
+.inventory-list .bg-slate-800\/60,
+.inventory-stats .bg-slate-900\/85,
+.inventory-stats .bg-slate-950\/40 {
+  background: var(--bg-elevated) !important;
+}
+
+.inventory-list select option,
+.inventory-form select option {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.recharts-default-tooltip {
+  border-radius: 18px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--bg-elevated-strong) !important;
+  box-shadow: var(--shadow-soft) !important;
 }

@@ -205,13 +205,17 @@ export default function Form() {
   };
 
   if (loading) {
-    return <div className="py-16 text-center text-sm text-slate-300">Cargando...</div>;
+    return (
+      <div className="inventory-form py-16 text-center text-sm text-[var(--text-soft)]">
+        Cargando...
+      </div>
+    );
   }
 
   if (!isAdmin) {
     return (
-      <div className="mx-auto max-w-3xl">
-        <div className="rounded-[28px] border border-amber-500/20 bg-amber-500/10 p-6 shadow-xl shadow-black/20">
+      <div className="inventory-form mx-auto max-w-3xl">
+        <div className="surface-card rounded-[28px] border border-amber-500/20 bg-amber-500/10 p-6">
           <div className="flex items-start gap-3">
             <ShieldAlert className="mt-0.5 h-6 w-6 text-amber-200" />
             <div>
@@ -221,7 +225,7 @@ export default function Form() {
               </p>
               <button
                 onClick={() => navigate('/')}
-                className="mt-4 rounded-2xl border border-slate-700 bg-slate-800/80 px-4 py-2 text-sm font-medium text-white transition hover:border-slate-600 hover:bg-slate-800"
+                className="apple-button-secondary mt-4 rounded-2xl px-4 py-2 text-sm font-medium transition hover:opacity-90"
               >
                 Volver al listado
               </button>
@@ -233,39 +237,39 @@ export default function Form() {
   }
 
   const inputClass =
-    'mt-2 h-11 w-full rounded-2xl border border-slate-700/70 bg-slate-950/70 px-4 text-sm text-slate-100 placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-4 focus:ring-blue-500/10';
+    'apple-input mt-2 h-11 w-full rounded-2xl px-4 text-sm text-[var(--text)] placeholder:text-[var(--text-faint)]';
 
   const textareaClass =
-    'mt-2 w-full rounded-2xl border border-slate-700/70 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-4 focus:ring-blue-500/10';
+    'apple-input mt-2 w-full rounded-2xl px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--text-faint)]';
 
   const sectionTitle = (title: string, subtitle?: string) => (
     <div className="sm:col-span-6">
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 px-4 py-4">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-200">
+      <div className="section-header rounded-[24px] px-4 py-4">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--text)]">
           {title}
         </h3>
-        {subtitle ? <p className="mt-1 text-xs text-slate-400">{subtitle}</p> : null}
+        {subtitle ? <p className="mt-1 text-xs text-[var(--text-soft)]">{subtitle}</p> : null}
       </div>
     </div>
   );
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="inventory-form mx-auto max-w-7xl">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <span className="mb-2 inline-flex rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-200">
+          <span className="apple-chip mb-2 inline-flex rounded-full px-3 py-1 text-xs font-medium">
             {isEdit ? 'Edición de registro' : 'Nuevo registro'}
           </span>
-          <h1 className="text-3xl font-semibold tracking-tight text-white">
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">
             {isEdit ? 'Editar Equipo' : 'Nuevo Equipo'}
           </h1>
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-[var(--text-soft)]">
             Complete la información del equipo de cómputo.
           </p>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[28px] border border-slate-800 bg-slate-900/85 shadow-2xl shadow-black/20">
+      <div className="surface-card overflow-hidden rounded-[30px]">
         {error && (
           <div className="m-5 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
             <div className="flex items-start gap-3">
@@ -615,11 +619,11 @@ export default function Form() {
             </div>
           </div>
 
-          <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-800 pt-6 sm:flex-row sm:justify-end">
+          <div className="mt-8 flex flex-col-reverse gap-3 border-t border-[var(--border)] pt-6 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={() => navigate('/')}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/80 px-5 py-3 text-sm font-medium text-white transition hover:border-slate-600 hover:bg-slate-800"
+              className="apple-button-secondary inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-medium transition hover:opacity-90"
             >
               <X className="h-4 w-4" />
               Cancelar
@@ -628,7 +632,7 @@ export default function Form() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-50"
+              className="apple-button-primary inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-medium transition hover:brightness-105 disabled:opacity-50"
             >
               <Save className="h-4 w-4" />
               {saving ? 'Guardando...' : 'Guardar'}

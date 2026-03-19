@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { ChangeEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search,
@@ -73,7 +74,7 @@ function Field({
 }) {
   return (
     <div className={col2 ? 'col-span-2' : ''}>
-      <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
+      <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--text-soft)]">
         {label}
       </span>
       <span className="text-sm font-medium text-slate-100">{value || '—'}</span>
@@ -83,12 +84,12 @@ function Field({
 
 function getActivoBadge(value?: string) {
   if (value === 'SI') {
-    return 'inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-200';
+    return 'inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300';
   }
   if (value === 'NO') {
-    return 'inline-flex items-center rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-200';
+    return 'inline-flex items-center rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-700 dark:text-red-300';
   }
-  return 'inline-flex items-center rounded-full border border-slate-600/70 bg-slate-800/80 px-2.5 py-1 text-xs font-medium text-slate-300';
+  return 'inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--bg-soft)] px-2.5 py-1 text-xs font-medium text-[var(--text-soft)]';
 }
 
 export default function List() {
@@ -141,13 +142,23 @@ export default function List() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
+  const readJsonSafely = async (res: Response) => {
+    const raw = await res.text();
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return { error: raw.startsWith('<!DOCTYPE') ? 'El servidor devolvio una pagina HTML inesperada.' : raw };
+    }
+  };
+
   const fetchEquipos = async () => {
     setLoading(true);
     try {
       const res = await fetch(
         `/api/equipos?q=${encodeURIComponent(search)}&page=${page}&limit=${pageSize}&filterBy=${encodeURIComponent(filterBy)}&sortBy=${encodeURIComponent(sortBy)}&sortDir=${sortDir}`
       );
-      const data = await res.json();
+      const data = await readJsonSafely(res);
       setEquipos(data.data || []);
       setTotalPages(data.totalPages || 1);
       setTotal(data.total || 0);
@@ -280,7 +291,7 @@ export default function List() {
     }
   };
 
-  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportExcel = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!isAdmin) {
       alert('Debes iniciar sesión como admin para importar');
       e.target.value = '';
@@ -308,7 +319,7 @@ export default function List() {
         body: formData,
       });
 
-      const data = await res.json();
+      const data = await readJsonSafely(res);
 
       if (!res.ok) {
         throw new Error(data?.error || 'Error al analizar el Excel');
@@ -488,13 +499,13 @@ export default function List() {
     (showEstado ? 1 : 0);
 
   const inputClass =
-    'h-12 rounded-2xl border border-slate-700/70 bg-slate-950/70 px-4 text-sm text-slate-100 placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-4 focus:ring-blue-500/10';
+    'apple-input h-12 rounded-2xl px-4 text-sm text-[var(--text)] placeholder:text-[var(--text-faint)]';
 
   const panelClass =
-    'rounded-[28px] border border-slate-800 bg-slate-900/85 shadow-2xl shadow-black/20';
+    'surface-card rounded-[30px]';
 
   return (
-    <div className="space-y-6">
+    <div className="inventory-list space-y-6">
       {showActa && equipoActa && (
         <ActaEntrega
           equipo={equipoActa}
@@ -506,219 +517,272 @@ export default function List() {
       )}
 
       {showImportPreview && importPreview && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-7xl overflow-hidden rounded-[28px] border border-slate-800 bg-slate-900 shadow-2xl shadow-black/40">
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/95 px-6 py-4">
-              <div>
-                <h2 className="text-lg font-semibold text-white">Revisar importación</h2>
-                <p className="text-sm text-slate-400">
-                  Filas: {importPreview.totalRows} · Nuevos: {importPreview.readyToImport.length} ·
-                  Duplicados: {importPreview.duplicates.length} · Inválidos:{' '}
-                  {importPreview.invalidRows.length}
-                </p>
-              </div>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-xl">
+          <div className="surface-card flex max-h-[90vh] w-full max-w-7xl flex-col overflow-hidden rounded-[34px]">
+            <div className="border-b border-[var(--border)] bg-[var(--bg-soft)] px-6 py-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <span className="apple-chip inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]">
+                    Importacion Excel
+                  </span>
+                  <h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-[var(--text)]">
+                    Revisar importacion
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm text-[var(--text-soft)]">
+                    Filas: {importPreview.totalRows} · Nuevos: {importPreview.readyToImport.length} ·
+                    Duplicados: {importPreview.duplicates.length} · Invalidos: {importPreview.invalidRows.length}
+                  </p>
+                </div>
 
-              <button
-                onClick={() => setShowImportPreview(false)}
-                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"
-              >
-                <X size={20} />
-              </button>
+                <button
+                  onClick={() => setShowImportPreview(false)}
+                  className="self-start rounded-2xl bg-[var(--bg-elevated)] p-2 text-[var(--text-soft)] transition hover:opacity-90"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
-            <div className="max-h-[68vh] overflow-y-auto space-y-6 p-6">
-              <div>
-                <h3 className="mb-3 text-base font-semibold text-emerald-300">
-                  Listos para importar ({importPreview.readyToImport.length})
-                </h3>
+            <div className="px-6 pb-2 pt-5">
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="rounded-[24px] bg-[var(--bg-elevated)] px-4 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-soft)]">
+                    Filas totales
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[var(--text)]">
+                    {importPreview.totalRows}
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-emerald-500/20 bg-emerald-500/10 px-4 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-300">
+                    Listos
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[var(--text)]">
+                    {importPreview.readyToImport.length}
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-amber-500/20 bg-amber-500/10 px-4 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-600 dark:text-amber-300">
+                    Duplicados
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[var(--text)]">
+                    {importPreview.duplicates.length}
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-rose-500/20 bg-rose-500/10 px-4 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-rose-600 dark:text-rose-300">
+                    Invalidos
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[var(--text)]">
+                    {importPreview.invalidRows.length}
+                  </p>
+                </div>
+              </div>
+            </div>
 
-                <div className="overflow-x-auto rounded-2xl border border-slate-800">
+            <div className="max-h-[62vh] overflow-y-auto space-y-5 px-6 pb-6 pt-2">
+              <section className="rounded-[28px] border border-emerald-500/12 bg-emerald-500/6 p-4">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-[var(--text)]">
+                      Listos para importar
+                    </h3>
+                    <p className="mt-1 text-sm text-[var(--text-soft)]">
+                      Registros nuevos que ya cumplen las validaciones.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">
+                    {importPreview.readyToImport.length}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)]">
                   <table className="min-w-full text-sm">
-                    <thead className="bg-slate-950/70 text-slate-400">
+                    <thead className="thead-surface text-[var(--text-soft)]">
                       <tr>
-                        <th className="px-3 py-2 text-left">Fila</th>
-                        <th className="px-3 py-2 text-left">Host / PC</th>
-                        <th className="px-3 py-2 text-left">Responsable</th>
-                        <th className="px-3 py-2 text-left">Serie</th>
-                        <th className="px-3 py-2 text-left">MAC</th>
-                        <th className="px-3 py-2 text-left">IP</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Fila</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Host / PC</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Responsable</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Serie</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">MAC</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">IP</th>
                       </tr>
                     </thead>
                     <tbody>
                       {importPreview.readyToImport.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-3 py-4 text-center text-slate-500">
-                            No hay registros nuevos listos para importar
+                          <td colSpan={6} className="px-4 py-6 text-center text-[var(--text-soft)]">
+                            No hay registros nuevos listos para importar.
                           </td>
                         </tr>
                       ) : (
                         importPreview.readyToImport.map((item) => (
-                          <tr
-                            key={item.importKey}
-                            className="border-t border-slate-800 text-slate-200"
-                          >
-                            <td className="px-3 py-2">{item.rowIndex}</td>
-                            <td className="px-3 py-2">
-                              {item.equipo.nombre_host || item.equipo.nombre_pc || '-'}
-                            </td>
-                            <td className="px-3 py-2">
-                              {item.equipo.responsable_equipo || '-'}
-                            </td>
-                            <td className="px-3 py-2">{item.equipo.serie || '-'}</td>
-                            <td className="px-3 py-2">{item.equipo.mac_address || '-'}</td>
-                            <td className="px-3 py-2">{item.equipo.ip || '-'}</td>
+                          <tr key={item.importKey} className="border-t border-[var(--border)] text-[var(--text)]">
+                            <td className="px-4 py-3 font-mono text-xs text-[var(--text-soft)]">{item.rowIndex}</td>
+                            <td className="px-4 py-3 font-medium">{item.equipo.nombre_host || item.equipo.nombre_pc || '-'}</td>
+                            <td className="px-4 py-3">{item.equipo.responsable_equipo || '-'}</td>
+                            <td className="px-4 py-3">{item.equipo.serie || '-'}</td>
+                            <td className="px-4 py-3">{item.equipo.mac_address || '-'}</td>
+                            <td className="px-4 py-3">{item.equipo.ip || '-'}</td>
                           </tr>
                         ))
                       )}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </section>
 
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h3 className="text-base font-semibold text-amber-300">
-                    Duplicados detectados ({importPreview.duplicates.length})
-                  </h3>
+              <section className="rounded-[28px] border border-amber-500/12 bg-amber-500/6 p-4">
+                <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold text-[var(--text)]">
+                      Duplicados detectados
+                    </h3>
+                    <p className="mt-1 text-sm text-[var(--text-soft)]">
+                      Puedes revisar y decidir si algunos duplicados tambien deben entrar.
+                    </p>
+                  </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() =>
                         setSelectedDuplicateKeys(importPreview.duplicates.map((d) => d.importKey))
                       }
-                      className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white transition hover:border-slate-600 hover:bg-slate-800/80"
+                      className="apple-button-secondary rounded-2xl px-3 py-2 text-sm font-medium transition hover:opacity-90"
                     >
                       Seleccionar todos
                     </button>
                     <button
                       onClick={() => setSelectedDuplicateKeys([])}
-                      className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white transition hover:border-slate-600 hover:bg-slate-800/80"
+                      className="apple-button-secondary rounded-2xl px-3 py-2 text-sm font-medium transition hover:opacity-90"
                     >
                       Quitar todos
                     </button>
                   </div>
                 </div>
 
-                <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                <div className="overflow-x-auto rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)]">
                   <table className="min-w-full text-sm">
-                    <thead className="bg-slate-950/70 text-slate-400">
+                    <thead className="thead-surface text-[var(--text-soft)]">
                       <tr>
-                        <th className="px-3 py-2 text-left">Agregar</th>
-                        <th className="px-3 py-2 text-left">Fila</th>
-                        <th className="px-3 py-2 text-left">Motivo</th>
-                        <th className="px-3 py-2 text-left">Host / PC</th>
-                        <th className="px-3 py-2 text-left">Responsable</th>
-                        <th className="px-3 py-2 text-left">Serie</th>
-                        <th className="px-3 py-2 text-left">MAC</th>
-                        <th className="px-3 py-2 text-left">Existe ID</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Agregar</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Fila</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Motivo</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Host / PC</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Responsable</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Serie</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">MAC</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Existe ID</th>
                       </tr>
                     </thead>
                     <tbody>
                       {importPreview.duplicates.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-3 py-4 text-center text-slate-500">
-                            No se detectaron duplicados
+                          <td colSpan={8} className="px-4 py-6 text-center text-[var(--text-soft)]">
+                            No se detectaron duplicados.
                           </td>
                         </tr>
                       ) : (
                         importPreview.duplicates.map((item) => (
-                          <tr
-                            key={`${item.importKey}-${item.rowIndex}`}
-                            className="border-t border-slate-800 text-slate-200"
-                          >
-                            <td className="px-3 py-2">
+                          <tr key={`${item.importKey}-${item.rowIndex}`} className="border-t border-[var(--border)] text-[var(--text)]">
+                            <td className="px-4 py-3">
                               <input
                                 type="checkbox"
                                 checked={selectedDuplicateKeys.includes(item.importKey)}
                                 onChange={() => toggleDuplicateSelection(item.importKey)}
-                                className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500"
+                                className="h-4 w-4 rounded border-[var(--border-strong)] bg-white/80 text-[var(--primary)]"
                               />
                             </td>
-                            <td className="px-3 py-2">{item.rowIndex}</td>
-                            <td className="px-3 py-2">{item.duplicateReason || '-'}</td>
-                            <td className="px-3 py-2">
-                              {item.equipo.nombre_host || item.equipo.nombre_pc || '-'}
-                            </td>
-                            <td className="px-3 py-2">
-                              {item.equipo.responsable_equipo || '-'}
-                            </td>
-                            <td className="px-3 py-2">{item.equipo.serie || '-'}</td>
-                            <td className="px-3 py-2">{item.equipo.mac_address || '-'}</td>
-                            <td className="px-3 py-2">{item.existing?.id || '-'}</td>
+                            <td className="px-4 py-3 font-mono text-xs text-[var(--text-soft)]">{item.rowIndex}</td>
+                            <td className="px-4 py-3">{item.duplicateReason || '-'}</td>
+                            <td className="px-4 py-3 font-medium">{item.equipo.nombre_host || item.equipo.nombre_pc || '-'}</td>
+                            <td className="px-4 py-3">{item.equipo.responsable_equipo || '-'}</td>
+                            <td className="px-4 py-3">{item.equipo.serie || '-'}</td>
+                            <td className="px-4 py-3">{item.equipo.mac_address || '-'}</td>
+                            <td className="px-4 py-3">{item.existing?.id || '-'}</td>
                           </tr>
                         ))
                       )}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </section>
 
-              <div>
-                <h3 className="mb-3 text-base font-semibold text-rose-300">
-                  Filas inválidas ({importPreview.invalidRows.length})
-                </h3>
+              <section className="rounded-[28px] border border-rose-500/12 bg-rose-500/6 p-4">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-[var(--text)]">
+                      Filas invalidas
+                    </h3>
+                    <p className="mt-1 text-sm text-[var(--text-soft)]">
+                      Estas filas se bloquean antes de llegar a la base de datos.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-rose-500/12 px-3 py-1 text-sm font-medium text-rose-600 dark:text-rose-300">
+                    {importPreview.invalidRows.length}
+                  </span>
+                </div>
 
-                <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                <div className="overflow-x-auto rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)]">
                   <table className="min-w-full text-sm">
-                    <thead className="bg-slate-950/70 text-slate-400">
+                    <thead className="thead-surface text-[var(--text-soft)]">
                       <tr>
-                        <th className="px-3 py-2 text-left">Fila</th>
-                        <th className="px-3 py-2 text-left">Motivo</th>
-                        <th className="px-3 py-2 text-left">Host / PC</th>
-                        <th className="px-3 py-2 text-left">Responsable</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Fila</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Motivo</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Host / PC</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em]">Responsable</th>
                       </tr>
                     </thead>
                     <tbody>
                       {importPreview.invalidRows.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="px-3 py-4 text-center text-slate-500">
-                            No hay filas inválidas
+                          <td colSpan={4} className="px-4 py-6 text-center text-[var(--text-soft)]">
+                            No hay filas invalidas.
                           </td>
                         </tr>
                       ) : (
                         importPreview.invalidRows.map((item, idx) => (
-                          <tr
-                            key={`${item.rowIndex}-${idx}`}
-                            className="border-t border-slate-800 text-slate-200"
-                          >
-                            <td className="px-3 py-2">{item.rowIndex}</td>
-                            <td className="px-3 py-2">{item.reason || '-'}</td>
-                            <td className="px-3 py-2">
-                              {item.equipo?.nombre_host || item.equipo?.nombre_pc || '-'}
-                            </td>
-                            <td className="px-3 py-2">
-                              {item.equipo?.responsable_equipo || '-'}
-                            </td>
+                          <tr key={`${item.rowIndex}-${idx}`} className="border-t border-[var(--border)] text-[var(--text)]">
+                            <td className="px-4 py-3 font-mono text-xs text-[var(--text-soft)]">{item.rowIndex}</td>
+                            <td className="px-4 py-3">{item.reason || '-'}</td>
+                            <td className="px-4 py-3 font-medium">{item.equipo?.nombre_host || item.equipo?.nombre_pc || '-'}</td>
+                            <td className="px-4 py-3">{item.equipo?.responsable_equipo || '-'}</td>
                           </tr>
                         ))
                       )}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </section>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-800 bg-slate-900/95 px-6 py-4">
-              <p className="text-sm text-slate-400">
-                Se importarán{' '}
-                {importPreview.readyToImport.length + selectedDuplicateKeys.length} registros
-              </p>
+            <div className="border-t border-[var(--border)] bg-[var(--bg-soft)] px-6 py-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    Se importaran {importPreview.readyToImport.length + selectedDuplicateKeys.length} registros
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--text-soft)]">
+                    Nuevos: {importPreview.readyToImport.length} · Duplicados seleccionados: {selectedDuplicateKeys.length}
+                  </p>
+                </div>
 
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowImportPreview(false)}
-                  className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-white transition hover:border-slate-600 hover:bg-slate-800/80"
-                >
-                  Cancelar
-                </button>
+                <div className="flex flex-col-reverse gap-3 sm:flex-row">
+                  <button
+                    onClick={() => setShowImportPreview(false)}
+                    className="apple-button-secondary rounded-2xl px-5 py-3 text-sm font-medium transition hover:opacity-90"
+                  >
+                    Cancelar
+                  </button>
 
-                <button
-                  onClick={confirmImportExcel}
-                  disabled={importingPreview}
-                  className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-60"
-                >
-                  {importingPreview ? 'Importando...' : 'Importar seleccionados'}
-                </button>
+                  <button
+                    onClick={confirmImportExcel}
+                    disabled={importingPreview}
+                    className="apple-button-primary rounded-2xl px-5 py-3 text-sm font-medium transition hover:brightness-105 disabled:opacity-60"
+                  >
+                    {importingPreview ? 'Importando...' : 'Importar seleccionados'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -805,31 +869,55 @@ export default function List() {
       )}
 
       {equipoDetalle && (
-        <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="fixed inset-0 z-[120] flex justify-end p-3 sm:p-4">
           <div
-            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-[var(--overlay)] backdrop-blur-xl"
             onClick={() => setEquipoDetalle(null)}
           />
-          <div className="relative flex h-full w-full max-w-2xl flex-col border-l border-slate-800 bg-slate-900 shadow-2xl shadow-black/50">
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/95 px-6 py-5">
-              <div>
-                <h2 className="text-lg font-semibold text-white">
-                  {equipoDetalle.nombre_host || equipoDetalle.nombre_pc || 'Sin nombre'}
-                </h2>
-                <p className="mt-1 text-xs text-slate-400">ID #{equipoDetalle.id}</p>
+          <div className="surface-card relative flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-[32px]">
+            <div className="border-b border-[var(--border)] bg-[var(--bg-soft)] px-6 py-5">
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--text-soft)]">
+                    Ficha de equipo
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--text)]">
+                    {equipoDetalle.nombre_host || equipoDetalle.nombre_pc || 'Sin nombre'}
+                  </h2>
+                  <p className="mt-1 text-sm text-[var(--text-soft)]">ID #{equipoDetalle.id}</p>
+                </div>
+                <button
+                  onClick={() => setEquipoDetalle(null)}
+                  className="rounded-2xl bg-[var(--bg-elevated)] p-2 text-[var(--text-soft)] transition hover:opacity-90"
+                >
+                  <X size={20} />
+                </button>
               </div>
-              <button
-                onClick={() => setEquipoDetalle(null)}
-                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"
-              >
-                <X size={20} />
-              </button>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[24px] bg-[var(--bg-elevated)] px-4 py-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-soft)]">Usuario</p>
+                  <p className="mt-2 text-sm font-medium text-[var(--text)]">
+                    {equipoDetalle.usuario || 'Sin usuario'}
+                  </p>
+                </div>
+                <div className="rounded-[24px] bg-[var(--bg-elevated)] px-4 py-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-soft)]">Tipo</p>
+                  <p className="mt-2 text-sm font-medium text-[var(--text)]">
+                    {equipoDetalle.tipo_recurso || 'Sin tipo'}
+                  </p>
+                </div>
+                <div className="rounded-[24px] bg-[var(--bg-elevated)] px-4 py-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-soft)]">Estado</p>
+                  <div className="mt-2">{equipoDetalle.activo ? <span className={getActivoBadge(equipoDetalle.activo)}>{equipoDetalle.activo}</span> : <span className="text-sm text-[var(--text-soft)]">Sin estado</span>}</div>
+                </div>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto bg-[var(--bg-elevated)] p-6">
               <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-                <div className="col-span-2 border-b border-slate-800 pb-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">
+                <div className="col-span-2 border-b border-[var(--border)] pb-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">
                     Identificación
                   </span>
                 </div>
@@ -843,8 +931,8 @@ export default function List() {
                 <Field label="Serie" value={equipoDetalle.serie} />
                 <Field label="S.O." value={equipoDetalle.sistema_operativo} />
 
-                <div className="col-span-2 mt-2 border-b border-slate-800 pb-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">
+                <div className="col-span-2 mt-2 border-b border-[var(--border)] pb-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-300">
                     Red
                   </span>
                 </div>
@@ -854,8 +942,8 @@ export default function List() {
                 <Field label="MAC Address" value={equipoDetalle.mac_address} />
                 <Field label="MAC Address 2" value={equipoDetalle.mac_address2} />
 
-                <div className="col-span-2 mt-2 border-b border-slate-800 pb-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">
+                <div className="col-span-2 mt-2 border-b border-[var(--border)] pb-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">
                     Hardware
                   </span>
                 </div>
@@ -865,8 +953,8 @@ export default function List() {
                 <Field label="Antivirus" value={equipoDetalle.antivirus} />
                 <Field label="Procesador" value={equipoDetalle.procesador} col2 />
 
-                <div className="col-span-2 mt-2 border-b border-slate-800 pb-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-200">
+                <div className="col-span-2 mt-2 border-b border-[var(--border)] pb-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600 dark:text-violet-300">
                     Organización
                   </span>
                 </div>
@@ -877,8 +965,8 @@ export default function List() {
                 <Field label="Área" value={equipoDetalle.area} />
                 <Field label="Responsable" value={equipoDetalle.responsable_equipo} />
 
-                <div className="col-span-2 mt-2 border-b border-slate-800 pb-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">
+                <div className="col-span-2 mt-2 border-b border-[var(--border)] pb-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-300">
                     Fechas y estado
                   </span>
                 </div>
@@ -896,10 +984,10 @@ export default function List() {
 
                 {equipoDetalle.observacion && (
                   <div className="col-span-2 mt-2">
-                    <span className="mb-2 block text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
+                    <span className="mb-2 block text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--text-soft)]">
                       Observación
                     </span>
-                    <p className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-100">
+                    <p className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-soft)] p-4 text-sm text-[var(--text)]">
                       {equipoDetalle.observacion}
                     </p>
                   </div>
@@ -907,7 +995,7 @@ export default function List() {
               </div>
             </div>
 
-            <div className="border-t border-slate-800 bg-slate-900/95 px-6 py-4">
+            <div className="border-t border-[var(--border)] bg-[var(--bg-soft)] px-6 py-4">
               {isAdmin ? (
                 <div className="flex gap-3">
                   <button
@@ -915,7 +1003,7 @@ export default function List() {
                       setEquipoActa(equipoDetalle);
                       setShowActa(true);
                     }}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-500/15"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-700 transition hover:opacity-90 dark:text-cyan-300"
                   >
                     <FileText size={15} />
                     Acta
@@ -926,7 +1014,7 @@ export default function List() {
                       navigate(`/edit/${equipoDetalle.id}`);
                       setEquipoDetalle(null);
                     }}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-500"
+                    className="apple-button-primary inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition hover:brightness-105"
                   >
                     <Pencil size={15} />
                     Editar
@@ -934,7 +1022,7 @@ export default function List() {
 
                   <button
                     onClick={() => handleDelete(equipoDetalle.id)}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-700 transition hover:opacity-90 dark:text-red-300"
                   >
                     <Trash2 size={15} />
                     Eliminar
@@ -943,7 +1031,7 @@ export default function List() {
               ) : (
                 <div className="flex items-center gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
                   <ShieldAlert size={18} />
-                  Inicia sesión como administrador para editar o eliminar este equipo.
+                  Inicia sesi?n como administrador para editar o eliminar este equipo.
                 </div>
               )}
             </div>
@@ -951,97 +1039,117 @@ export default function List() {
         </div>
       )}
 
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <span className="mb-2 inline-flex rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-200">
-            Gestión centralizada
-          </span>
-          <h1 className="text-3xl font-semibold tracking-tight text-white">
-            Inventario de Equipos
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-400">
-            Administra equipos, consulta detalles, importa registros y exporta información.
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)]">
+        <div className="surface-card relative overflow-hidden rounded-[34px] px-6 py-7 sm:px-8">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top_left,_rgba(0,113,227,0.14),_transparent_58%)]" />
+          <div className="relative">
+            <span className="apple-chip inline-flex rounded-full px-3 py-1 text-xs font-medium">
+              Centro de control
+            </span>
+            <h1 className="mt-5 max-w-3xl text-4xl font-semibold tracking-[-0.04em] text-[var(--text)] sm:text-5xl">
+              Inventario de equipos
+            </h1>
+            <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--text-soft)]">
+              {'Una vista m\u00e1s clara para explorar activos, revisar responsables y abrir fichas detalladas sin salir del listado.'}
+
+            </p>
+
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              <div className="metric-card rounded-[28px] px-5 py-5">
+                <span className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--text-soft)]">
+                  Registros
+                </span>
+                <div className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-[var(--text)]">
+                  {total}
+                </div>
+                <p className="mt-2 text-sm text-[var(--text-soft)]">
+                  Equipos visibles en el inventario actual.
+                </p>
+              </div>
+
+              <div className="metric-card rounded-[28px] px-5 py-5">
+                <span className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--text-soft)]">
+                  Seleccionados
+                </span>
+                <div className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-[var(--text)]">
+                  {selectedIds.length}
+                </div>
+                <p className="mt-2 text-sm text-[var(--text-soft)]">
+                  {'Listos para edici\u00f3n, borrado o revisi\u00f3n manual.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside className="surface-card rounded-[34px] px-6 py-6">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--text-soft)]">
+            Acciones
           </p>
-        </div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--text)]">
+            {'Flujo r\u00e1pido'}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--text-soft)]">
+            {'Ejecuta acciones comunes y mant\u00e9n visible el estado actual del listado.'}
+          </p>
 
-        <div className="flex flex-wrap gap-3">
-          {selectedIds.length > 0 && isAdmin && (
-            <button
-              onClick={handleDeleteSelected}
-              className="inline-flex items-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
-            >
-              <Trash2 size={16} />
-              Eliminar seleccionados ({selectedIds.length})
-            </button>
-          )}
-
-          {isAdmin && (
-            <>
-              <button
-                onClick={handleVerScript}
-                className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-white transition hover:border-slate-600 hover:bg-slate-800/80"
-              >
-                <FileText size={16} />
-                Ver Script
-              </button>
-
-              <button
-                onClick={handleExportExcel}
-                className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500"
-              >
-                <FileDown size={16} />
-                Exportar Excel
-              </button>
-
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-500">
-                <Upload size={16} />
-                {importing ? 'Analizando...' : 'Importar Excel'}
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="hidden"
-                  onChange={handleImportExcel}
-                  disabled={importing}
-                />
-              </label>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/85 px-4 py-4">
-          <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-            Registros
-          </span>
-          <div className="mt-2 text-2xl font-semibold text-white">{total}</div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/85 px-4 py-4">
-          <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-            Seleccionados
-          </span>
-          <div className="mt-2 text-2xl font-semibold text-white">{selectedIds.length}</div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/85 px-4 py-4">
-          <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-            Página
-          </span>
-          <div className="mt-2 text-2xl font-semibold text-white">
-            {page} <span className="text-base font-medium text-slate-500">/ {totalPages}</span>
+          <div className="mt-5 rounded-[24px] bg-[var(--bg-soft)] px-4 py-4">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-soft)]">
+              Contexto actual
+            </p>
+            <div className="mt-3 space-y-2 text-sm text-[var(--text)]">
+              <p>Filtro: {filterBy === 'all' ? 'Todos los campos' : filterBy}</p>
+              <p>{`P\u00e1gina: ${page} de ${totalPages}`}</p>
+              <p>Orden: {sortBy} / {sortDir}</p>
+            </div>
           </div>
-        </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/85 px-4 py-4">
-          <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-            Filtro activo
-          </span>
-          <div className="mt-2 text-lg font-semibold text-white">
-            {filterBy === 'all' ? 'Todos los campos' : filterBy}
+          <div className="mt-5 grid gap-3">
+            {selectedIds.length > 0 && isAdmin && (
+              <button
+                onClick={handleDeleteSelected}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-700 transition hover:opacity-90 dark:text-red-300"
+              >
+                <Trash2 size={16} />
+                Eliminar seleccionados ({selectedIds.length})
+              </button>
+            )}
+
+            {isAdmin && (
+              <>
+                <button
+                  onClick={handleVerScript}
+                  className="apple-button-secondary inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition hover:opacity-90"
+                >
+                  <FileText size={16} />
+                  Ver script
+                </button>
+
+                <button
+                  onClick={handleExportExcel}
+                  className="apple-button-primary inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition hover:brightness-105"
+                >
+                  <FileDown size={16} />
+                  Exportar Excel
+                </button>
+
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white shadow-[0_12px_24px_rgba(16,185,129,0.18)] transition hover:brightness-105">
+                  <Upload size={16} />
+                  {importing ? 'Analizando...' : 'Importar Excel'}
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={handleImportExcel}
+                    disabled={importing}
+                  />
+                </label>
+              </>
+            )}
           </div>
-        </div>
-      </div>
+        </aside>
+      </section>
+
 
       {importMessage && (
         <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-200">
@@ -1061,39 +1169,51 @@ export default function List() {
         </div>
       )}
 
-      <div className={`${panelClass} p-4 sm:p-5`}>
-        <div className="flex flex-col gap-4">
-          <div className="w-full">
-            <label
-              htmlFor="search"
-              className="mb-1 block text-xs font-medium uppercase tracking-[0.16em] text-slate-400"
-            >
-              Buscar
-            </label>
-            <div className="relative">
-              <Search
-                size={16}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
-              />
-              <input
-                id="search"
-                type="text"
-                placeholder="Buscar por el valor del filtro seleccionado..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                className={`${inputClass} w-full pl-11 pr-4`}
-              />
-            </div>
+      <section className="space-y-6">
+        <div className="surface-card rounded-[30px] p-5">
+          <div className="mb-5">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--text-soft)]">
+              Buscar y refinar
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--text)]">
+              Explorador
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-soft)]">
+              Ajusta búsqueda, filtro y orden antes de entrar al detalle de cada equipo.
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex min-w-[220px] flex-col gap-1">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
+            <div className="min-w-0">
+              <label
+                htmlFor="search"
+                className="mb-1 block text-xs font-medium uppercase tracking-[0.16em] text-slate-400"
+              >
+                Buscar
+              </label>
+              <div className="relative">
+                <Search
+                  size={16}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                />
+                <input
+                  id="search"
+                  type="text"
+                  placeholder="Buscar por el valor del filtro seleccionado..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className={`${inputClass} w-full pl-11 pr-4`}
+                />
+              </div>
+            </div>
+
+            <div className="min-w-0">
               <label
                 htmlFor="filterBy"
-                className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400"
+                className="mb-1 block text-xs font-medium uppercase tracking-[0.16em] text-slate-400"
               >
                 Filtrar por
               </label>
@@ -1104,7 +1224,7 @@ export default function List() {
                   setFilterBy(e.target.value);
                   setPage(1);
                 }}
-                className={inputClass}
+                className={`${inputClass} w-full`}
               >
                 <option value="all" className="bg-slate-900">
                   Todos los campos
@@ -1163,10 +1283,10 @@ export default function List() {
               </select>
             </div>
 
-            <div className="flex min-w-[220px] flex-col gap-1">
+            <div className="min-w-0">
               <label
                 htmlFor="sortBy"
-                className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400"
+                className="mb-1 block text-xs font-medium uppercase tracking-[0.16em] text-slate-400"
               >
                 Ordenar por
               </label>
@@ -1177,7 +1297,7 @@ export default function List() {
                   setSortBy(e.target.value);
                   setPage(1);
                 }}
-                className={inputClass}
+                className={`${inputClass} w-full`}
               >
                 <option value="id" className="bg-slate-900">
                   ID
@@ -1224,10 +1344,10 @@ export default function List() {
               </select>
             </div>
 
-            <div className="flex min-w-[180px] flex-col gap-1">
+            <div className="min-w-0">
               <label
                 htmlFor="sortDir"
-                className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400"
+                className="mb-1 block text-xs font-medium uppercase tracking-[0.16em] text-slate-400"
               >
                 Dirección
               </label>
@@ -1238,7 +1358,7 @@ export default function List() {
                   setSortDir(e.target.value as 'asc' | 'desc');
                   setPage(1);
                 }}
-                className={inputClass}
+                className={`${inputClass} w-full`}
               >
                 <option value="desc" className="bg-slate-900">
                   Descendente
@@ -1249,36 +1369,46 @@ export default function List() {
               </select>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className={panelClass}>
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/95 px-5 py-4">
+          <div className="mt-4 rounded-[24px] bg-[var(--bg-elevated)] px-4 py-4">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-soft)]">
+              Resumen
+            </p>
+            <div className="mt-3 grid gap-2 text-sm text-[var(--text)] sm:grid-cols-3">
+              <p>Filtro activo: {filterBy === 'all' ? 'Todos los campos' : filterBy}</p>
+              <p>Orden actual: {sortBy} / {sortDir}</p>
+              <p>Tamaño de página: {pageSize} filas</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="surface-card min-w-0 overflow-hidden rounded-[30px]">
+          <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-5">
           <div>
-            <h2 className="text-base font-semibold text-white">
+            <h2 className="text-lg font-semibold text-[var(--text)]">
               {filterBy === 'all' ? 'Listado principal' : `Resultados por filtro: ${filterBy}`}
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="mt-1 text-sm text-[var(--text-soft)]">
               {filterBy === 'all'
-                ? 'Haz clic en una fila para ver el detalle completo del equipo.'
-                : 'La tabla muestra solo la información del filtro seleccionado.'}
+                ? 'Haz clic en una fila para abrir una ficha lateral con el detalle completo.'
+                : 'La tabla muestra solo la informaci\u00f3n del filtro seleccionado.'}
             </p>
           </div>
         </div>
 
-        <div className="w-full overflow-x-auto rounded-b-[28px]">
+        <div className="w-full overflow-x-auto">
           <table className="min-w-[900px] table-fixed text-sm">
-            <thead className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95">
+            <thead className="thead-surface sticky top-0 z-10 border-b border-[var(--border)]">
               <tr>
                 <th className="w-[40px] px-3 py-3 text-left">
                   <input
                     type="checkbox"
                     checked={selectedIds.length === equipos?.length && equipos?.length > 0}
                     onChange={toggleSelectAll}
-                    className="rounded border-slate-600 bg-slate-800 text-blue-500"
+                    className="rounded border-[var(--border-strong)] bg-white/80 text-blue-500"
                   />
                 </th>
-                <th className="w-[70px] px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                <th className="w-[70px] px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-soft)]">
                   ID
                 </th>
                 {showNombre && (
@@ -1313,7 +1443,7 @@ export default function List() {
                 {showDepartamento && (
                   <th className="w-[180px] px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                     {filterBy === 'area'
-                      ? 'Área'
+                      ? '?rea'
                       : filterBy === 'establecimiento'
                       ? 'Establecimiento'
                       : 'Departamento'}
@@ -1352,8 +1482,8 @@ export default function List() {
                     <tr
                       key={equipo.id}
                       onClick={() => setEquipoDetalle(equipo)}
-                      className={`cursor-pointer border-b border-slate-800/80 transition hover:bg-slate-800/60 ${
-                        selectedIds.includes(equipo.id) ? 'bg-blue-500/10' : ''
+                      className={`cursor-pointer border-b border-[var(--border)] transition hover:bg-[var(--primary-soft)]/60 ${
+                        selectedIds.includes(equipo.id) ? 'bg-[var(--primary-soft)]' : ''
                       }`}
                     >
                       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
@@ -1361,11 +1491,11 @@ export default function List() {
                           type="checkbox"
                           checked={selectedIds.includes(equipo.id)}
                           onChange={() => toggleSelect(equipo.id)}
-                          className="rounded border-slate-600 bg-slate-800 text-blue-500"
+                          className="rounded border-[var(--border-strong)] bg-white/80 text-blue-500"
                         />
                       </td>
 
-                      <td className="px-3 py-3 font-mono text-xs text-slate-400">{equipo.id}</td>
+                      <td className="px-3 py-3 font-mono text-xs text-[var(--text-soft)]">{equipo.id}</td>
 
                       {showNombre && (
                         <td className="px-3 py-3">
@@ -1470,7 +1600,7 @@ export default function List() {
                             <span className="text-slate-200">{equipo.etiquetado || '-'}</span>
                           ) : (
                             <span className={getActivoBadge(equipo.activo)}>
-                              {equipo.activo || '—'}
+                              {equipo.activo || '?'}
                             </span>
                           )}
                         </td>
@@ -1481,24 +1611,25 @@ export default function List() {
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      </section>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/85 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <p className="text-sm text-slate-300">
+      <div className="surface-card flex flex-col gap-4 rounded-[28px] px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
+        <p className="text-sm text-[var(--text-soft)]">
           Mostrando {total === 0 ? 0 : (page - 1) * pageSize + 1} a{' '}
           {Math.min(page * pageSize, total)} de {total} resultados
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-300">Mostrar</label>
+            <label className="text-sm text-[var(--text-soft)]">Mostrar</label>
             <select
               value={pageSize}
               onChange={(e) => {
                 setPageSize(Number(e.target.value));
                 setPage(1);
               }}
-              className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              className="apple-input rounded-xl px-3 py-2 text-sm text-[var(--text)] focus:outline-none"
             >
               {Array.from({ length: 11 }, (_, i) => i + 10).map((n) => (
                 <option key={n} value={n}>
@@ -1513,17 +1644,17 @@ export default function List() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white transition hover:border-slate-600 hover:bg-slate-800/80 disabled:opacity-40"
+                className="apple-button-secondary rounded-xl px-3 py-2 text-sm transition hover:opacity-90 disabled:opacity-40"
               >
                 Anterior
               </button>
-              <span className="px-2 text-sm text-slate-300">
+              <span className="px-2 text-sm text-[var(--text-soft)]">
                 {page} / {totalPages}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white transition hover:border-slate-600 hover:bg-slate-800/80 disabled:opacity-40"
+                className="apple-button-secondary rounded-xl px-3 py-2 text-sm transition hover:opacity-90 disabled:opacity-40"
               >
                 Siguiente
               </button>
@@ -1534,3 +1665,4 @@ export default function List() {
     </div>
   );
 }
+
