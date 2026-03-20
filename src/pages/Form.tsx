@@ -2,6 +2,47 @@ import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, X, AlertCircle, ShieldAlert } from 'lucide-react';
 
+function inferTipoRecurso(values: {
+  nombre_host?: string;
+  nombre_pc?: string;
+  modelo?: string;
+  marca?: string;
+  procesador?: string;
+}) {
+  const source = [
+    values.nombre_host,
+    values.nombre_pc,
+    values.modelo,
+    values.marca,
+    values.procesador,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toUpperCase();
+
+  if (!source.trim()) return '';
+
+  if (/\bNUC\b/.test(source)) return 'NUC';
+
+  if (
+    /\b(AIO|ALL[\s-]?IN[\s-]?ONE|IMAC|THINKCENTRE NEO 30A|OPTIPLEX 5400|PROONE|ELITEDISPLAY)\b/.test(
+      source
+    )
+  ) {
+    return 'ALL-IN-ONE';
+  }
+
+  if (
+    /\b(LAPTOP|NOTEBOOK|LATITUDE|PROBOOK|ELITEBOOK|THINKPAD|VOSTRO|PAVILION|ZENBOOK|VIVOBOOK|ASPIRE|NITRO|TRAVELMATE|MACBOOK)\b/.test(
+      source
+    )
+  ) {
+    return 'LAPTOP';
+  }
+
+  return 'CPU';
+}
+
 export default function Form() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -88,6 +129,15 @@ export default function Form() {
           cleanData.modelo = cleanData.modelo || cleanData.modelo_pc || '';
           cleanData.serie = cleanData.serie || cleanData.no_serie || '';
           cleanData.empresa = cleanData.empresa || 'Santa Priscila';
+          cleanData.tipo_recurso =
+            cleanData.tipo_recurso ||
+            inferTipoRecurso({
+              nombre_host: cleanData.nombre_host,
+              nombre_pc: cleanData.nombre_pc,
+              modelo: cleanData.modelo,
+              marca: cleanData.marca,
+              procesador: cleanData.procesador,
+            });
 
           setFormData((prev) => ({ ...prev, ...cleanData }));
           setLoading(false);
@@ -105,7 +155,15 @@ export default function Form() {
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [name]: value };
+
+      if (name !== 'tipo_recurso' && ['nombre_host', 'nombre_pc', 'modelo', 'marca', 'procesador'].includes(name)) {
+        next.tipo_recurso = inferTipoRecurso(next);
+      }
+
+      return next;
+    });
   };
 
   const emptyToNull = (value: any) => {
