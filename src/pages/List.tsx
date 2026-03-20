@@ -92,6 +92,12 @@ function getActivoBadge(value?: string) {
   return 'inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--bg-soft)] px-2.5 py-1 text-xs font-medium text-[var(--text-soft)]';
 }
 
+function getActivoLabel(value?: string) {
+  if (value === 'SI') return 'Activo';
+  if (value === 'NO') return 'Inactivo';
+  return value || '?';
+}
+
 export default function List() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -376,7 +382,12 @@ export default function List() {
         throw new Error(data?.error || 'Error al confirmar importación');
       }
 
-      setImportMessage(data.message || 'Importación completada');
+      setImportMessage(
+        data?.message ||
+          (typeof data?.inserted === 'number' && typeof data?.requested === 'number'
+            ? `Importacion completada. ${data.inserted} de ${data.requested} registros insertados.`
+            : 'Importación completada')
+      );
       setShowImportPreview(false);
       setImportPreview(null);
       setSelectedDuplicateKeys([]);
@@ -1600,7 +1611,7 @@ export default function List() {
                             <span className="text-slate-200">{equipo.etiquetado || '-'}</span>
                           ) : (
                             <span className={getActivoBadge(equipo.activo)}>
-                              {equipo.activo || '?'}
+                              {getActivoLabel(equipo.activo)}
                             </span>
                           )}
                         </td>

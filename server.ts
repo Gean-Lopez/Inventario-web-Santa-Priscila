@@ -285,11 +285,50 @@ function normalizeUsername(value: unknown) {
   return String(value || '').trim().toLowerCase();
 }
 
-function toDbDate(value: unknown) {
+function normalizeDateValue(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const excelEpoch = Date.UTC(1899, 11, 30);
+    const asDate = new Date(excelEpoch + Math.round(value * 24 * 60 * 60 * 1000));
+    if (Number.isNaN(asDate.getTime())) return null;
+    return asDate.toISOString().slice(0, 10);
+  }
+
   const text = String(value).trim();
-  if (!SAFE_DATE_REGEX.test(text)) return null;
-  return text;
+  if (!text) return null;
+
+  if (SAFE_DATE_REGEX.test(text)) {
+    return text;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+    const isoDate = new Date(text);
+    if (Number.isNaN(isoDate.getTime())) return null;
+    return isoDate.toISOString().slice(0, 10);
+  }
+
+  const slashMatch = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  const genericDate = new Date(text);
+  if (!Number.isNaN(genericDate.getTime())) {
+    return genericDate.toISOString().slice(0, 10);
+  }
+
+  return null;
+}
+
+function toDbDate(value: unknown) {
+  return normalizeDateValue(value);
 }
 
 function clampString(value: unknown, max: number) {
@@ -417,11 +456,11 @@ function createOptionalEnumValidator(values: readonly string[]) {
 function createOptionalDateValidator() {
   return (value: unknown): ValidatorResult<string | null> => {
     if (value === null || value === undefined || value === '') return validatorOk(null);
-    const text = String(value).trim();
-    if (!SAFE_DATE_REGEX.test(text)) return validatorError('Formato de fecha inválido');
-    const date = new Date(`${text}T00:00:00Z`);
+    const normalized = normalizeDateValue(value);
+    if (!normalized) return validatorError('Formato de fecha inválido');
+    const date = new Date(`${normalized}T00:00:00Z`);
     if (Number.isNaN(date.getTime())) return validatorError('Fecha inválida');
-    return validatorOk(text);
+    return validatorOk(normalized);
   };
 }
 
@@ -980,13 +1019,29 @@ function createImportKey(rowIndex: number, equipo: EquipoRecord) {
   )}:${normalizeCompareText(equipo.mac_address)}`;
 }
 
+function createBatchSignature(equipo: EquipoRecord) {
+  return [
+    normalizeCompareText(equipo.nombre_host || equipo.nombre_pc),
+    normalizeCompareText(equipo.serie),
+    normalizeCompareText(equipo.mac_address || equipo.direccion_mac),
+    normalizeCompareText(equipo.ip),
+  ].join('|');
+}
+
+function getImportSortTimestamp(equipo: EquipoRecord) {
+  const candidate = equipo.fecha_inventario || equipo.fecha_instalacion || equipo.fecha_adquisicion;
+  const normalized = normalizeDateValue(candidate);
+  if (!normalized) return Number.MAX_SAFE_INTEGER;
+  return new Date(`${normalized}T00:00:00Z`).getTime();
+}
+
 async function analyzeImportRows(rows: Record<string, unknown>[]) {
   const connection = await pool.getConnection();
   try {
     const readyToImport: any[] = [];
     const duplicates: any[] = [];
     const invalidRows: any[] = [];
-    const seenKeys = new Set<string>();
+    const seenBatch = new Set<string>();
 
     for (let index = 0; index < rows.length; index += 1) {
       const rowIndex = index + 2;
@@ -1010,11 +1065,12 @@ async function analyzeImportRows(rows: Record<string, unknown>[]) {
       }
 
       const importKey = createImportKey(rowIndex, equipo);
-      if (seenKeys.has(importKey)) {
+      const batchSignature = createBatchSignature(equipo);
+      if (seenBatch.has(batchSignature)) {
         duplicates.push({ rowIndex, importKey, equipo, duplicateReason: 'duplicado_en_excel' });
         continue;
       }
-      seenKeys.add(importKey);
+      seenBatch.add(batchSignature);
 
       const duplicate = await findDuplicateEquipo(connection, equipo);
       if (duplicate.exists) {
@@ -1726,16 +1782,31 @@ app.post('/api/importexcel/confirm', verifyToken, requireAdmin, async (req: Auth
     if (!allowed) return;
 
     const payload = req.body as {
-      readyToImport?: Array<{ equipo?: EquipoRecord }>;
-      selectedDuplicates?: Array<{ equipo?: EquipoRecord }>;
+      readyToImport?: Array<{ equipo?: EquipoRecord; importKey?: string; rowIndex?: number }>;
+      selectedDuplicates?: Array<{ equipo?: EquipoRecord; importKey?: string; rowIndex?: number }>;
     };
 
     if (!payload || !Array.isArray(payload.readyToImport) || !Array.isArray(payload.selectedDuplicates)) {
       return res.status(400).json({ error: 'Payload de importación inválido' });
     }
 
-    const items = [...payload.readyToImport, ...payload.selectedDuplicates];
+    const items = [...payload.readyToImport, ...payload.selectedDuplicates].sort((left, right) => {
+      const leftRecord =
+        left?.equipo && typeof left.equipo === 'object' ? buildEquipoRecord(left.equipo as EquipoPayload) : null;
+      const rightRecord =
+        right?.equipo && typeof right.equipo === 'object' ? buildEquipoRecord(right.equipo as EquipoPayload) : null;
+
+      const leftTime = leftRecord ? getImportSortTimestamp(leftRecord) : Number.MAX_SAFE_INTEGER;
+      const rightTime = rightRecord ? getImportSortTimestamp(rightRecord) : Number.MAX_SAFE_INTEGER;
+      if (leftTime !== rightTime) return leftTime - rightTime;
+
+      const leftRow = typeof left?.rowIndex === 'number' ? left.rowIndex : Number.MAX_SAFE_INTEGER;
+      const rightRow = typeof right?.rowIndex === 'number' ? right.rowIndex : Number.MAX_SAFE_INTEGER;
+      return leftRow - rightRow;
+    });
+    const seenBatch = new Set<string>();
     let inserted = 0;
+    let skippedInBatch = 0;
 
     for (const item of items) {
       if (!item?.equipo || typeof item.equipo !== 'object') {
@@ -1748,10 +1819,12 @@ app.post('/api/importexcel/confirm', verifyToken, requireAdmin, async (req: Auth
       }
 
       const equipo = buildEquipoRecord(validated.value);
-      const duplicate = await findDuplicateEquipo(connection, equipo);
-      if (duplicate.exists) continue;
-      const similar = await findSimilarEquipo(connection, equipo);
-      if (similar.exists) continue;
+      const batchSignature = createBatchSignature(equipo);
+      if (seenBatch.has(batchSignature)) {
+        skippedInBatch += 1;
+        continue;
+      }
+      seenBatch.add(batchSignature);
       await insertEquipo(connection, equipo);
       inserted += 1;
     }
@@ -1764,10 +1837,15 @@ app.post('/api/importexcel/confirm', verifyToken, requireAdmin, async (req: Auth
       userId: req.user?.id,
       route: req.originalUrl,
       method: req.method,
-      details: { inserted, requested: items.length },
+      details: { inserted, requested: items.length, skippedInBatch },
     });
 
-    return res.json({ message: `Importación completada. ${inserted} registros insertados.` });
+    return res.json({
+      message: `Importacion completada. ${inserted} de ${items.length} registros insertados.`,
+      inserted,
+      requested: items.length,
+      skippedInBatch,
+    });
   } catch (error) {
     return handleServerError(req, res, error, 'import_confirm_error', 'No se pudo confirmar la importación');
   } finally {
@@ -1882,3 +1960,4 @@ start().catch((error) => {
   securityLog('error', 'server_boot_failed', { error: String(error) });
   process.exit(1);
 });
+

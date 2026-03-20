@@ -77,6 +77,34 @@ export default function Stats() {
       total: Number(row.count) || 0,
     })) || [];
 
+  const estadoChart = [
+    { name: 'Activos', value: Number(stats?.activos) || 0, color: '#22c55e' },
+    { name: 'Inactivos', value: Number(stats?.inactivos) || 0, color: '#ef4444' },
+  ];
+
+  const licenciasChart = [
+    {
+      name: 'Windows con licencia',
+      value: Number(stats?.licencias?.conLicenciaWindows) || 0,
+      color: '#3b82f6',
+    },
+    {
+      name: 'Windows sin licencia',
+      value: Number(stats?.licencias?.sinLicenciaWindows) || 0,
+      color: '#f59e0b',
+    },
+    {
+      name: 'Office con licencia',
+      value: Number(stats?.licencias?.conLicenciaOffice) || 0,
+      color: '#06b6d4',
+    },
+    {
+      name: 'Office sin licencia',
+      value: Number(stats?.licencias?.sinLicenciaOffice) || 0,
+      color: '#ef4444',
+    },
+  ];
+
   const COLORS = [
     '#3b82f6',
     '#06b6d4',
@@ -100,15 +128,38 @@ export default function Stats() {
     {
       title: 'Estado de equipos',
       value: (
-        <div className="space-y-1 text-sm">
-          <div>
-            <span className="font-semibold text-emerald-600 dark:text-emerald-300">{stats.activos}</span>{' '}
-            <span className="text-slate-300">activos</span>
-          </div>
-          <div>
-            <span className="font-semibold text-slate-100">{stats.inactivos}</span>{' '}
-            <span className="text-slate-400">inactivos</span>
-          </div>
+        <div className="h-[140px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={estadoChart}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={34}
+                outerRadius={54}
+                paddingAngle={3}
+              >
+                {estadoChart.map((item) => (
+                  <Cell key={item.name} fill={item.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'var(--bg-elevated-strong)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '16px',
+                  color: 'var(--text)',
+                }}
+              />
+              <Legend
+                verticalAlign="bottom"
+                height={24}
+                formatter={(value) => <span style={{ color: 'var(--text-soft)' }}>{value}</span>}
+              />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       ),
       subtitle: 'Según campo ACTIVO del inventario',
@@ -119,29 +170,38 @@ export default function Stats() {
     {
       title: 'Licenciamiento',
       value: (
-        <div className="space-y-1 text-sm text-slate-300">
-          <div>
-            Windows:{' '}
-            <span className="font-semibold text-slate-100">
-              {stats.licencias?.conLicenciaWindows || 0}
-            </span>{' '}
-            con /{' '}
-            <span className="font-semibold text-amber-600 dark:text-amber-300">
-              {stats.licencias?.sinLicenciaWindows || 0}
-            </span>{' '}
-            sin
-          </div>
-          <div>
-            Office:{' '}
-            <span className="font-semibold text-slate-100">
-              {stats.licencias?.conLicenciaOffice || 0}
-            </span>{' '}
-            con /{' '}
-            <span className="font-semibold text-amber-600 dark:text-amber-300">
-              {stats.licencias?.sinLicenciaOffice || 0}
-            </span>{' '}
-            sin
-          </div>
+        <div className="h-[140px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={licenciasChart}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={34}
+                outerRadius={54}
+                paddingAngle={3}
+              >
+                {licenciasChart.map((item) => (
+                  <Cell key={item.name} fill={item.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'var(--bg-elevated-strong)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '16px',
+                  color: 'var(--text)',
+                }}
+              />
+              <Legend
+                verticalAlign="bottom"
+                height={36}
+                formatter={(value) => <span style={{ color: 'var(--text-soft)' }}>{value}</span>}
+              />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       ),
       subtitle: 'Equipos con o sin licencias registradas',
